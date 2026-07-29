@@ -62,14 +62,14 @@ Configure under **Settings → Hospital Profile / Branding**.
 
 ## Deploy (GitHub + subdomain)
 
-See steps in chat / below summary:
-
 1. Push code to GitHub (`main` branch).
 2. On hosting: clone repo, point subdomain document root to `public/`.
-3. Copy `config/database.example.php` → `config/database.php` (live DB).
-4. Copy `config/app.example.php` → `config/app.php` (set `url`, `debug=false`).
-5. Run `composer dump-autoload -o`, import `database/schema.sql`, then `php database/seed.php`.
-6. Run `php database/migrate_booking.php` and `php database/sync_roles.php` if needed.
+3. Copy `.env.example` → `.env` and set live `DB_*` + optional `APP_URL`.
+4. Run `composer dump-autoload -o`, import `database/schema.sql`, then `php database/seed.php`.
+5. Run `php database/migrate_booking.php` and `php database/sync_roles.php` if needed.
+
+`config/app.php` and `config/database.php` are shared — do not change them per server. Use `.env` only.
+
 
 ## Notes for developers
 

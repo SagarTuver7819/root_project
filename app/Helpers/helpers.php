@@ -2,8 +2,55 @@
 
 use App\Core\App;
 use App\Core\Auth;
+use App\Core\Env;
 use App\Core\Session;
 use App\Models\Setting;
+
+function env(string $key, mixed $default = null): mixed
+{
+    $value = Env::get($key, $default);
+
+    if (is_string($value)) {
+        $lower = strtolower($value);
+        if (in_array($lower, ['true', '(true)'], true)) {
+            return true;
+        }
+        if (in_array($lower, ['false', '(false)'], true)) {
+            return false;
+        }
+        if (in_array($lower, ['null', '(null)'], true)) {
+            return null;
+        }
+        if (in_array($lower, ['empty', '(empty)'], true)) {
+            return '';
+        }
+    }
+
+    return $value;
+}
+
+/** Auto base URL for local folder OR live subdomain (no config push needed). */
+function detect_app_url(): string
+{
+    if (PHP_SAPI === 'cli') {
+        return (string) env('APP_URL', 'http://localhost/roots_project/public');
+    }
+
+    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || ((string) ($_SERVER['SERVER_PORT'] ?? '') === '443')
+        || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https');
+
+    $scheme = $https ? 'https' : 'http';
+    $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
+    $script = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+    $base = rtrim(str_replace('\\', '/', dirname($script)), '/');
+
+    if ($base === '' || $base === '.' || $base === '/') {
+        return $scheme . '://' . $host;
+    }
+
+    return $scheme . '://' . $host . $base;
+}
 
 function app_url(string $path = ''): string
 {

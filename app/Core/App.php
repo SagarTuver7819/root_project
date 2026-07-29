@@ -9,8 +9,18 @@ class App
 
     public static function bootstrap(): void
     {
+        Env::load();
+
         $app = self::config('app');
         date_default_timezone_set($app['timezone'] ?? 'Asia/Kolkata');
+
+        if (!empty($app['debug'])) {
+            error_reporting(E_ALL);
+            ini_set('display_errors', '1');
+        } else {
+            error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED);
+            ini_set('display_errors', '0');
+        }
 
         if (session_status() === PHP_SESSION_NONE) {
             session_name($app['session_name'] ?? 'roots_hms_session');

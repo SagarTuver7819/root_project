@@ -1,12 +1,11 @@
 # Dependencies
 /vendor/
 
-# Environment / local secrets (copy from *.example.php)
+# Environment / secrets (same codebase; different .env per machine)
 .env
 .env.*
 !.env.example
-/config/database.local.php
-/config/app.local.php
+!.env.live.example
 
 # OS / editor junk
 .DS_Store
