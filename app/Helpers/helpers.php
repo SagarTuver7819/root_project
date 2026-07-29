@@ -152,6 +152,10 @@ function branding(?string $key = null, mixed $default = null): mixed
         'hospital_address' => '208 Jasal Complex, Nanavati Circle, 150 Feet Ring Rd, Rajkot, Gujarat 360007',
         'hospital_phone' => '083477 60330',
         'hospital_email' => 'info@rootsdentistry.in',
+        // Login page look & feel (admin-configurable)
+        'login_logo_opacity' => '0.22',
+        'login_logo_scale' => '1.00',
+        'login_bg_overlay_opacity' => '0.12',
         'booking_amount' => '300',
         'booking_validity_months' => '3',
     ];

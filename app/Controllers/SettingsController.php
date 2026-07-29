@@ -27,6 +27,10 @@ class SettingsController extends Controller
             'secondary_color' => 'required',
             'sidebar_color' => 'required',
             'sidebar_text_color' => 'required',
+            // Login page styling controls
+            'login_logo_opacity' => 'required|numeric|min:0.05|max:1',
+            'login_logo_scale' => 'required|numeric|min:0.7|max:1.8',
+            'login_bg_overlay_opacity' => 'required|numeric|min:0|max:0.25',
         ]);
 
         $pairs = [
@@ -35,6 +39,9 @@ class SettingsController extends Controller
             'secondary_color' => $data['secondary_color'],
             'sidebar_color' => $data['sidebar_color'],
             'sidebar_text_color' => $data['sidebar_text_color'],
+            'login_logo_opacity' => $data['login_logo_opacity'],
+            'login_logo_scale' => $data['login_logo_scale'],
+            'login_bg_overlay_opacity' => $data['login_bg_overlay_opacity'],
             'hospital_address' => $request->input('hospital_address', ''),
             'hospital_phone' => $request->input('hospital_phone', ''),
             'hospital_email' => $request->input('hospital_email', ''),

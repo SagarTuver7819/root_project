@@ -95,6 +95,56 @@ $logoFields = [
                 <?php endforeach; ?>
 
                 <div class="col-12">
+                    <hr class="my-2">
+                    <h6 class="mb-3">Login Page Styling</h6>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Login Logo Opacity</label>
+                    <input
+                        class="form-control"
+                        type="number"
+                        name="login_logo_opacity"
+                        step="0.01"
+                        min="0.05"
+                        max="1"
+                        value="<?= e(old('login_logo_opacity', $brand['login_logo_opacity'] ?? 0.22)) ?>"
+                        required
+                    >
+                    <div class="form-text">0.05 = very light, 1 = full visible</div>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Login Logo Size (Scale)</label>
+                    <input
+                        class="form-control"
+                        type="number"
+                        name="login_logo_scale"
+                        step="0.01"
+                        min="0.7"
+                        max="1.8"
+                        value="<?= e(old('login_logo_scale', $brand['login_logo_scale'] ?? 1.0)) ?>"
+                        required
+                    >
+                    <div class="form-text">1.00 = default size</div>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Login Background Darkness</label>
+                    <input
+                        class="form-control"
+                        type="number"
+                        name="login_bg_overlay_opacity"
+                        step="0.01"
+                        min="0"
+                        max="0.25"
+                        value="<?= e(old('login_bg_overlay_opacity', $brand['login_bg_overlay_opacity'] ?? 0.12)) ?>"
+                        required
+                    >
+                    <div class="form-text">0 = no dark overlay, 0.25 = stronger</div>
+                </div>
+
+                <div class="col-12">
                     <label class="form-label">Address</label>
                     <textarea class="form-control" name="hospital_address" rows="2"><?= e(old('hospital_address', $brand['hospital_address'] ?? '')) ?></textarea>
                 </div>
