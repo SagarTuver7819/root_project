@@ -3,6 +3,7 @@ $actions = '<a href="' . app_url('patients/' . ($patient['id'] ?? '') . '/edit')
 require __DIR__ . '/../../components/page-header.php';
 
 $tabs = [
+    'clinical' => 'Clinical Chart',
     'history' => 'History',
     'appointments' => 'Appointments',
     'visits' => 'Visits',
@@ -11,9 +12,9 @@ $tabs = [
     'payments' => 'Payments',
     'documents' => 'Documents',
 ];
-$defaultTab = $_GET['tab'] ?? 'history';
+$defaultTab = $_GET['tab'] ?? 'clinical';
 if (!isset($tabs[$defaultTab])) {
-    $defaultTab = 'history';
+    $defaultTab = 'clinical';
 }
 ?>
 <div class="card content-card mb-4">

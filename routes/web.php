@@ -66,6 +66,7 @@ $router->group(['middleware' => ['auth']], function ($router) {
     $router->get('/patients/{id}/tab/{tab}', [PatientController::class, 'tab'], ['permission:patients.view']);
     $router->post('/patients/{id}/documents', [PatientController::class, 'uploadDocument'], ['csrf', 'permission:patients.edit']);
     $router->post('/patients/{id}/documents/{docId}/delete', [PatientController::class, 'deleteDocument'], ['csrf', 'permission:patients.edit']);
+    $router->post('/patients/{id}/clinical-chart', [PatientController::class, 'saveClinicalChart'], ['csrf', 'permission:patients.edit']);
 
     $router->get('/calendar', [CalendarController::class, 'index'], ['permission:appointments.view']);
     $router->get('/calendar/events', [CalendarController::class, 'events'], ['permission:appointments.view']);

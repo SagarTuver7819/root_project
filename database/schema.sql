@@ -474,6 +474,30 @@ CREATE TABLE patient_documents (
   INDEX idx_docs_patient (patient_id)
 ) ENGINE=InnoDB;
 
+CREATE TABLE patient_clinical_charts (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  patient_id INT UNSIGNED NOT NULL,
+  chief_complaint TEXT NULL,
+  drug_list TEXT NULL,
+  habit TEXT NULL,
+  test_advised TEXT NULL,
+  tooth_notes JSON NULL,
+  allotted_doctor_id INT UNSIGNED NULL,
+  test_done TEXT NULL,
+  next_appt_date DATE NULL,
+  next_appt_time TIME NULL,
+  next_appt_test TEXT NULL,
+  next_appt_doctor_id INT UNSIGNED NULL,
+  created_by INT UNSIGNED NULL,
+  updated_by INT UNSIGNED NULL,
+  created_at DATETIME NULL,
+  updated_at DATETIME NULL,
+  UNIQUE KEY uq_pcc_patient (patient_id),
+  FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
+  FOREIGN KEY (allotted_doctor_id) REFERENCES doctors(id) ON DELETE SET NULL,
+  FOREIGN KEY (next_appt_doctor_id) REFERENCES doctors(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
 CREATE TABLE bills (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   bill_number VARCHAR(50) NOT NULL UNIQUE,

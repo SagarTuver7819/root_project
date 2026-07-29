@@ -2427,6 +2427,115 @@ table.dataTable,
     gap: .45rem;
 }
 
+/* Patient Clinical Chart / Dental Odontogram */
+.dental-chart-wrap {
+    border: 1px solid #dbe3ea;
+    border-radius: 1rem;
+    background: #f8fbff;
+    padding: 1rem;
+}
 
+.dental-arch-label {
+    font-size: .85rem;
+    font-weight: 700;
+    color: #334155;
+    margin-bottom: .35rem;
+}
 
+.dental-side-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: .75rem;
+    color: #64748b;
+    font-weight: 600;
+    margin-bottom: .25rem;
+    padding: 0 .35rem;
+}
 
+.dental-arch {
+    display: grid;
+    grid-template-columns: repeat(16, minmax(0, 1fr));
+    gap: .28rem;
+}
+
+.dental-arch-primary {
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    max-width: 70%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.dental-midline {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #94a3b8, transparent);
+    margin: .55rem 0;
+}
+
+.tooth-btn {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    border-radius: .55rem;
+    padding: .35rem .15rem .25rem;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .15rem;
+    transition: border-color .15s ease, box-shadow .15s ease, background .15s ease, transform .15s ease;
+}
+
+.tooth-btn:hover {
+    border-color: var(--primary-color, #00AEEF);
+    box-shadow: 0 0 0 3px rgba(0, 174, 239, 0.12);
+    transform: translateY(-1px);
+}
+
+.tooth-btn.has-note {
+    border-color: #0ea5e9;
+    background: #e0f2fe;
+}
+
+.tooth-shape {
+    width: 1.15rem;
+    height: 1.45rem;
+    border: 1.5px solid #64748b;
+    border-radius: 45% 45% 35% 35%;
+    background: linear-gradient(180deg, #fff 0%, #f1f5f9 100%);
+    position: relative;
+}
+
+.tooth-shape::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -4px;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 5px;
+    background: #64748b;
+    border-radius: 1px;
+}
+
+.tooth-id {
+    font-size: .68rem;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1;
+}
+
+.tooth-notes-summary {
+    background: #fff;
+    border: 1px dashed #cbd5e1;
+    border-radius: .65rem;
+    padding: .65rem .75rem;
+    max-height: 160px;
+    overflow: auto;
+}
+
+@media (max-width: 767.98px) {
+    .dental-arch,
+    .dental-arch-primary {
+        grid-template-columns: repeat(8, minmax(0, 1fr));
+        max-width: 100%;
+    }
+}

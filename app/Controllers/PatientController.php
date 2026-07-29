@@ -245,7 +245,7 @@ class PatientController extends Controller
             'rowFormatter' => function (array $row) {
                 $actions = '<div class="table-actions">';
                 if (can('patients.view')) {
-                    $actions .= '<a href="' . app_url('patients/' . $row['id']) . '" class="btn btn-action" title="View"><i class="bi bi-eye"></i></a>';
+                    $actions .= '<a href="' . app_url('patients/' . $row['id'] . '?tab=clinical') . '" class="btn btn-action" title="View"><i class="bi bi-eye"></i></a>';
                 }
                 if (can('patients.edit')) {
                     $actions .= '<a href="' . app_url('patients/' . $row['id'] . '/edit') . '" class="btn btn-action" title="Edit"><i class="bi bi-pencil"></i></a>';
@@ -256,6 +256,10 @@ class PatientController extends Controller
                 $actions .= '</div>';
                 $row['registration_date'] = format_date($row['registration_date'] ?? null);
                 $row['status_badge'] = status_badge($row['is_active'] ? 'active' : 'inactive');
+                $name = e($row['name'] ?? '');
+                if (can('patients.view')) {
+                    $row['name'] = '<a class="fw-semibold text-decoration-none" href="' . app_url('patients/' . $row['id'] . '?tab=clinical') . '">' . $name . '</a>';
+                }
                 $row['actions'] = $actions;
                 return $row;
             },
@@ -477,7 +481,7 @@ class PatientController extends Controller
 
     public function tab(Request $request, string $id, string $tab): void
     {
-        $allowed = ['appointments', 'visits', 'treatments', 'prescriptions', 'payments', 'documents', 'history'];
+        $allowed = ['clinical', 'appointments', 'visits', 'treatments', 'prescriptions', 'payments', 'documents', 'history'];
         if (!in_array($tab, $allowed, true)) {
             $this->jsonError('Invalid tab.', null, 404);
         }
@@ -489,6 +493,33 @@ class PatientController extends Controller
         $limitSql = ' LIMIT ' . $perPage . ' OFFSET ' . $offset;
 
         switch ($tab) {
+            case 'clinical':
+                $this->ensureClinicalChartsTable();
+                $chart = Database::fetch(
+                    'SELECT * FROM patient_clinical_charts WHERE patient_id = ? LIMIT 1',
+                    [(int) $id]
+                ) ?: [];
+                $toothNotes = [];
+                if (!empty($chart['tooth_notes'])) {
+                    $decoded = json_decode((string) $chart['tooth_notes'], true);
+                    $toothNotes = is_array($decoded) ? $decoded : [];
+                }
+                $doctors = Database::fetchAll(
+                    'SELECT id, name FROM doctors WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name ASC'
+                );
+                $xrays = Database::fetchAll(
+                    "SELECT * FROM patient_documents WHERE patient_id = ? AND document_type = 'xray' ORDER BY id DESC LIMIT 20",
+                    [(int) $id]
+                );
+                $pictures = Database::fetchAll(
+                    "SELECT * FROM patient_documents WHERE patient_id = ? AND document_type IN ('photo','clinical_picture') ORDER BY id DESC LIMIT 20",
+                    [(int) $id]
+                );
+                $id = (int) $id;
+                ob_start();
+                require dirname(__DIR__, 2) . '/resources/views/modules/patients/tabs/clinical.php';
+                $html = ob_get_clean();
+                break;
             case 'appointments':
                 $rows = Database::fetchAll(
                     'SELECT a.*, d.name AS doctor_name, tm.name AS treatment_name FROM appointments a
@@ -619,6 +650,97 @@ class PatientController extends Controller
 
         AuditService::log('patients', 'document_delete', (int) $docId, $doc, null);
         $this->jsonSuccess('Document deleted successfully.');
+    }
+
+    public function saveClinicalChart(Request $request, string $id): void
+    {
+        $patient = Database::fetch('SELECT id FROM patients WHERE id = ? AND deleted_at IS NULL', [$id]);
+        if (!$patient) {
+            $this->jsonError('Patient not found.', null, 404);
+        }
+
+        $this->ensureClinicalChartsTable();
+
+        $toothNotesRaw = (string) $request->input('tooth_notes', '{}');
+        $toothNotes = json_decode($toothNotesRaw, true);
+        if (!is_array($toothNotes)) {
+            $toothNotes = [];
+        }
+        // Keep only non-empty notes
+        $toothNotes = array_filter(
+            $toothNotes,
+            static fn ($v) => is_string($v) ? trim($v) !== '' : $v !== null && $v !== ''
+        );
+
+        $payload = [
+            'chief_complaint' => $request->input('chief_complaint', ''),
+            'drug_list' => $request->input('drug_list', ''),
+            'habit' => $request->input('habit', ''),
+            'test_advised' => $request->input('test_advised', ''),
+            'tooth_notes' => json_encode($toothNotes, JSON_UNESCAPED_UNICODE),
+            'allotted_doctor_id' => $request->input('allotted_doctor_id') ?: null,
+            'test_done' => $request->input('test_done', ''),
+            'next_appt_date' => $request->input('next_appt_date') ?: null,
+            'next_appt_time' => $request->input('next_appt_time') ?: null,
+            'next_appt_test' => $request->input('next_appt_test', ''),
+            'next_appt_doctor_id' => $request->input('next_appt_doctor_id') ?: null,
+            'updated_by' => Auth::id(),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+
+        $existing = Database::fetch(
+            'SELECT id FROM patient_clinical_charts WHERE patient_id = ? LIMIT 1',
+            [(int) $id]
+        );
+
+        if ($existing) {
+            Database::update('patient_clinical_charts', $payload, 'id = :_id', ['_id' => (int) $existing['id']]);
+            AuditService::log('patients', 'clinical_chart_update', (int) $id, null, $payload);
+        } else {
+            $payload['patient_id'] = (int) $id;
+            $payload['created_by'] = Auth::id();
+            $payload['created_at'] = date('Y-m-d H:i:s');
+            Database::insert('patient_clinical_charts', $payload);
+            AuditService::log('patients', 'clinical_chart_create', (int) $id, null, $payload);
+        }
+
+        if ($request->isAjax()) {
+            $this->jsonSuccess('Clinical chart saved successfully.');
+        }
+
+        Session::flash('success', 'Clinical chart saved successfully.');
+        $this->redirect('patients/' . $id . '?tab=clinical');
+    }
+
+    private function ensureClinicalChartsTable(): void
+    {
+        static $ready = false;
+        if ($ready) {
+            return;
+        }
+        Database::connection()->exec(
+            "CREATE TABLE IF NOT EXISTS patient_clinical_charts (
+              id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+              patient_id INT UNSIGNED NOT NULL,
+              chief_complaint TEXT NULL,
+              drug_list TEXT NULL,
+              habit TEXT NULL,
+              test_advised TEXT NULL,
+              tooth_notes JSON NULL,
+              allotted_doctor_id INT UNSIGNED NULL,
+              test_done TEXT NULL,
+              next_appt_date DATE NULL,
+              next_appt_time TIME NULL,
+              next_appt_test TEXT NULL,
+              next_appt_doctor_id INT UNSIGNED NULL,
+              created_by INT UNSIGNED NULL,
+              updated_by INT UNSIGNED NULL,
+              created_at DATETIME NULL,
+              updated_at DATETIME NULL,
+              UNIQUE KEY uq_pcc_patient (patient_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+        $ready = true;
     }
 
     private function storePatientDocument(array $file, int $patientId): ?string
