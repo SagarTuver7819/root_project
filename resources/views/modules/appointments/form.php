@@ -25,6 +25,13 @@ $entryType = old('entry_type', $appointment['entry_type'] ?? 'appointment');
                         <option value="<?= e($option['id']) ?>" <?= (string) $selected === (string) $option['id'] ? 'selected' : '' ?>><?= e($option['name']) ?></option>
                     <?php endforeach; ?>
                 </select>
+                <?php if ($isEdit && !empty($appointment['patient_id']) && can('patients.view')): ?>
+                    <div class="mt-1">
+                        <a class="small" href="<?= app_url('patients/' . $appointment['patient_id'] . '?tab=clinical') ?>">
+                            <i class="bi bi-clipboard2-pulse me-1"></i>Open Clinical Chart
+                        </a>
+                    </div>
+                <?php endif; ?>
             </div>
             <div class="col-md-4">
                 <label class="form-label">Doctor</label>

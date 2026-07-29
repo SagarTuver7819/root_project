@@ -92,13 +92,10 @@ class AppointmentController extends \App\Core\Controller
                     $row['mobile'] = $row['mobile'] ?: '—';
                 } else {
                     $patientLabel = e((string) ($row['patient_name'] ?? '—'));
-                    if (!empty($row['patient_id']) && can('patients.view')) {
-                        $row['patient_name'] = '<a class="grid-hl grid-hl-patient text-decoration-none" href="'
-                            . app_url('patients/' . $row['patient_id'] . '?tab=clinical') . '">'
-                            . $patientLabel . '</a>';
-                    } else {
-                        $row['patient_name'] = '<span class="grid-hl grid-hl-patient">' . $patientLabel . '</span>';
-                    }
+                    // From appointments: open Appointment edit (not Patient edit / profile)
+                    $row['patient_name'] = '<a class="grid-hl grid-hl-patient text-decoration-none" href="'
+                        . app_url('appointments/' . $row['id'] . '/edit') . '">'
+                        . $patientLabel . '</a>';
                     $row['treatment_name'] = $treatmentLabel !== ''
                         ? '<span class="grid-hl grid-hl-treatment">' . e($treatmentLabel) . '</span>'
                         : '<span class="text-muted">—</span>';
