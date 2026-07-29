@@ -18,6 +18,21 @@ $logoFields = [
                 Sidebar માં દેખાવા માટે <strong>Sidebar Logo</strong> જ change કરો, પછી <strong>Save Branding</strong> દબાવો.
                 File choose કર્યા પછી Save વગર change apply નહીં થાય.
             </div>
+
+            <?php $errors = \App\Core\Session::getFlash('errors', []); ?>
+            <?php if (!empty($errors)): ?>
+                <div class="alert alert-danger py-3 mb-4">
+                    <div class="fw-semibold mb-2">Please fix the following errors:</div>
+                    <ul class="mb-0">
+                        <?php foreach ($errors as $fieldErrors): ?>
+                            <?php if (!is_array($fieldErrors)) continue; ?>
+                            <?php foreach ($fieldErrors as $msg): ?>
+                                <li><?= e($msg) ?></li>
+                            <?php endforeach; ?>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endif; ?>
             <div class="row g-4">
                 <div class="col-md-6">
                     <label class="form-label">Hospital Name</label>
