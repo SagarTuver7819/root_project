@@ -1,0 +1,52 @@
+# Dependencies
+/vendor/
+
+# Environment / local secrets (copy from *.example.php)
+.env
+.env.*
+!.env.example
+/config/database.local.php
+/config/app.local.php
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.code-workspace
+
+# Logs & temp / debug captures
+*.log
+*.tmp
+*.bak
+/storage/logs/*
+!/storage/logs/.gitkeep
+/storage/*.html
+/storage/*.json
+/storage/*.txt
+/storage/*.sql
+/storage/curl_*
+/storage/tmp_*
+
+# Uploaded patient docs & runtime uploads (keep branding logos)
+/public/assets/uploads/**
+!/public/assets/uploads/branding/
+!/public/assets/uploads/branding/.gitkeep
+!/public/assets/uploads/branding/logo-main.jpg
+!/public/assets/uploads/branding/logo-login.jpg
+!/public/assets/uploads/branding/logo-sidebar.jpg
+!/public/assets/uploads/branding/logo-collapsed.png
+!/public/assets/uploads/branding/logo-dark.png
+
+# Composer / caches
+.phpunit.result.cache
+/node_modules/
+
+# Local dumps / archives
+*.zip
+*.rar
+*.7z

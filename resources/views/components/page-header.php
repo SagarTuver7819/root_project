@@ -1,0 +1,1 @@
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4"><div><h2 class="h4 mb-1"><?= e($pageTitle ?? $title ?? "") ?></h2><div class="text-muted small"><?= e(branding("hospital_name")) ?></div></div><?php if (!empty($actions)): ?><div class="d-flex flex-wrap gap-2"><?= $actions ?></div><?php endif; ?></div>

@@ -1,0 +1,5 @@
+<?php
+$actions = '';
+require __DIR__ . '/../../components/page-header.php';
+?>
+<form method="post" action="<?= app_url('roles/'.($role['id']??'')) ?>" class="ajax-form"><?= csrf_field() ?><div class="card content-card"><div class="card-body"><h3 class="h5"><?= e($role['name']??'') ?></h3><?php $group=[]; foreach(($permissions??[]) as $p){$group[$p['module']??'General'][]=$p;} foreach($group as $module=>$items): ?><h4 class="h6 mt-4"><?= e(ucwords(str_replace('_',' ',$module))) ?></h4><div class="row g-2"><?php foreach($items as $p): ?><div class="col-md-3"><label class="border rounded p-2 w-100"><input type="checkbox" name="permission_ids[]" value="<?= e($p['id']) ?>" <?= in_array($p['id'],$assigned??[])?'checked':'' ?>> <?= e($p['action']??'') ?></label></div><?php endforeach; ?></div><?php endforeach; ?><div class="mt-4 d-flex gap-2"><button type="submit" class="btn btn-primary">Save Permissions</button><a class="btn btn-light" href="<?= app_url('roles') ?>">Cancel</a></div></div></div></form>

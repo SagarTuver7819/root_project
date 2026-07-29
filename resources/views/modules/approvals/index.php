@@ -1,0 +1,5 @@
+<?php
+$actions = '';
+require __DIR__ . '/../../components/page-header.php';
+?>
+<div class="card content-card"><div class="card-body"><table class="table table-hover"><thead><tr><th>Date</th><th>Module</th><th>Action</th><th>Requested By</th><th>Status</th><th>Actions</th></tr></thead><tbody><?php foreach(($requests??[]) as $r): ?><tr><td><?= e(format_date($r['request_date']??null)) ?></td><td><?= e($r['module']??'') ?></td><td><?= e($r['action']??'') ?></td><td><?= e($r['requested_by_name']??'') ?></td><td><?= status_badge($r['status']??'') ?></td><td><?php if(($r['status']??'')==='pending'): ?><form class="d-inline" method="post" action="<?= app_url('approvals/'.$r['id'].'/approve') ?>"><?= csrf_field() ?><button class="btn btn-sm btn-success">Approve</button></form><form class="d-inline" method="post" action="<?= app_url('approvals/'.$r['id'].'/reject') ?>"><?= csrf_field() ?><button class="btn btn-sm btn-danger">Reject</button></form><?php endif; ?></td></tr><?php endforeach; ?></tbody></table></div></div>

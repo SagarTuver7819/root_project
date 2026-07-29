@@ -1,0 +1,10 @@
+<?php
+$actions = '';
+require __DIR__ . '/../../components/page-header.php';
+?>
+<?php $supplier = $supplier ?? []; $isEdit = !empty($supplier['id']); ?>
+<form method="post" action="<?= $isEdit ? app_url('suppliers/' . $supplier['id']) : app_url('suppliers') ?>" class="ajax-form">
+<?= csrf_field() ?>
+<div class="card content-card"><div class="card-body"><div class="row g-3"><div class="col-md-4"><label class="form-label">Name</label><input class="form-control" type="text" name="name" value="<?= e(old('name', $supplier['name'] ?? '')) ?>"></div><div class="col-md-4"><label class="form-label">Contact Person</label><input class="form-control" type="text" name="contact_person" value="<?= e(old('contact_person', $supplier['contact_person'] ?? '')) ?>"></div><div class="col-md-4"><label class="form-label">Mobile</label><input class="form-control" type="text" name="mobile" value="<?= e(old('mobile', $supplier['mobile'] ?? '')) ?>"></div><div class="col-md-4"><label class="form-label">Email</label><input class="form-control" type="email" name="email" value="<?= e(old('email', $supplier['email'] ?? '')) ?>"></div><div class="col-md-4"><label class="form-label">Gst Number</label><input class="form-control" type="text" name="gst_number" value="<?= e(old('gst_number', $supplier['gst_number'] ?? '')) ?>"></div><div class="col-md-12"><label class="form-label">Address</label><textarea class="form-control" name="address" rows="3"><?= e(old('address', $supplier['address'] ?? '')) ?></textarea></div><div class="col-md-12"><label class="form-label">Remarks</label><textarea class="form-control" name="remarks" rows="3"><?= e(old('remarks', $supplier['remarks'] ?? '')) ?></textarea></div>
+<div class="col-md-4"><div class="form-check mt-4"><input class="form-check-input" type="checkbox" name="is_active" value="1" <?= (int) old('is_active', $supplier['is_active'] ?? 1) === 1 ? 'checked' : '' ?>><label class="form-check-label">Active</label></div></div>
+</div><button class="btn btn-primary mt-4">Save</button><a class="btn btn-light mt-4" href="<?= app_url('suppliers') ?>">Cancel</a></div></div></form>
