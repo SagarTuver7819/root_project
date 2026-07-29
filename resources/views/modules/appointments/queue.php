@@ -398,7 +398,13 @@ foreach ($columnKeys as $status):
                      id="card-apt-<?= e((string) $row['id']) ?>">
                     
                     <div class="kanban-card-top">
-                        <span class="kanban-patient-name"><?= e($row['patient_name'] ?? 'Walk-in Patient') ?></span>
+                        <?php if (!empty($row['patient_id']) && can('patients.view')): ?>
+                            <a class="kanban-patient-name text-decoration-none" href="<?= app_url('patients/' . $row['patient_id'] . '?tab=clinical') ?>">
+                                <?= e($row['patient_name'] ?? 'Walk-in Patient') ?>
+                            </a>
+                        <?php else: ?>
+                            <span class="kanban-patient-name"><?= e($row['patient_name'] ?? 'Walk-in Patient') ?></span>
+                        <?php endif; ?>
                         <span class="kanban-time">
                             <?= e(format_time($row['start_time'] ?? null)) ?>
                             <?php if ($slotEnd && $slotEnd !== '-'): ?>

@@ -39,7 +39,7 @@ class AppointmentController extends \App\Core\Controller
                 'INNER JOIN doctors d ON d.id = a.doctor_id',
                 'LEFT JOIN treatment_masters tm ON tm.id = a.treatment_master_id',
             ],
-            'columns' => ['a.id', 'a.appointment_code', 'a.appointment_date', 'a.start_time', 'a.end_time', 'p.name AS patient_name', 'p.mobile', 'd.name AS doctor_name', 'tm.name AS treatment_name', 'a.status', 'a.entry_type', 'a.notes'],
+            'columns' => ['a.id', 'a.appointment_code', 'a.appointment_date', 'a.start_time', 'a.end_time', 'a.patient_id', 'p.name AS patient_name', 'p.mobile', 'd.name AS doctor_name', 'tm.name AS treatment_name', 'a.status', 'a.entry_type', 'a.notes'],
             'searchable' => ['a.appointment_code', 'p.name', 'p.mobile', 'd.name', 'tm.name', 'a.status', 'a.notes'],
             'orderable' => [0 => 'a.id', 1 => 'a.appointment_code', 2 => 'a.appointment_date', 3 => 'a.start_time'],
             'defaultOrder' => ['a.appointment_date', 'DESC'],
@@ -91,7 +91,14 @@ class AppointmentController extends \App\Core\Controller
                         : '—';
                     $row['mobile'] = $row['mobile'] ?: '—';
                 } else {
-                    $row['patient_name'] = '<span class="grid-hl grid-hl-patient">' . e((string) ($row['patient_name'] ?? '—')) . '</span>';
+                    $patientLabel = e((string) ($row['patient_name'] ?? '—'));
+                    if (!empty($row['patient_id']) && can('patients.view')) {
+                        $row['patient_name'] = '<a class="grid-hl grid-hl-patient text-decoration-none" href="'
+                            . app_url('patients/' . $row['patient_id'] . '?tab=clinical') . '">'
+                            . $patientLabel . '</a>';
+                    } else {
+                        $row['patient_name'] = '<span class="grid-hl grid-hl-patient">' . $patientLabel . '</span>';
+                    }
                     $row['treatment_name'] = $treatmentLabel !== ''
                         ? '<span class="grid-hl grid-hl-treatment">' . e($treatmentLabel) . '</span>'
                         : '<span class="text-muted">—</span>';
