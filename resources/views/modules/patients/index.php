@@ -2,7 +2,7 @@
 $actions = can('patients.add') ? '<a href="' . app_url('patients/create') . '" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Add Patient</a>' : '';
 require __DIR__ . '/../../components/page-header.php';
 $tableId = 'patientsTable';
-$columns = ['#', 'Code', 'Name', 'Mobile', 'Gender', 'Age', 'Reg Date', 'Ref Doctor', 'Status', 'Actions'];
+$columns = ['#', 'OPD Number', 'Name', 'Mobile', 'Gender', 'Age', 'Reg Date', 'Ref Doctor', 'Status', 'Actions'];
 ob_start();
 ?>
 <div class="filter-field">

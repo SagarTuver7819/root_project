@@ -19,7 +19,7 @@ if (!isset($tabs[$defaultTab])) {
 <div class="card content-card mb-4">
     <div class="card-body">
         <div class="row g-3">
-            <div class="col-md-3"><strong>Code</strong><div><?= e($patient['patient_code'] ?? '') ?></div></div>
+            <div class="col-md-3"><strong>OPD Number</strong><div><?= e($patient['patient_code'] ?? '') ?></div></div>
             <div class="col-md-3"><strong>Name</strong><div><?= e($patient['name'] ?? '') ?></div></div>
             <div class="col-md-3"><strong>Mobile</strong><div><?= e($patient['mobile'] ?? '') ?></div></div>
             <div class="col-md-3"><strong>Status</strong><div><?= status_badge(!empty($patient['is_active']) ? 'active' : 'inactive') ?></div></div>

@@ -268,6 +268,7 @@ class PatientController extends Controller
             'title' => 'Add Patient',
             'pageTitle' => 'Add Patient',
             'patient' => null,
+            'suggestedOpdNumber' => $this->nextPatientCode(),
             'referenceDoctors' => Database::fetchAll('SELECT id, name FROM reference_doctors WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name'),
         ]);
     }
@@ -280,7 +281,18 @@ class PatientController extends Controller
             'gender' => 'in:male,female,other',
         ]);
 
-        $code = $this->nextPatientCode();
+        $code = trim((string) $request->input('patient_code', ''));
+        if ($code === '') {
+            $code = $this->nextPatientCode();
+        }
+        if ($this->patientCodeExists($code)) {
+            if ($request->isAjax()) {
+                $this->jsonError('OPD Number already exists. Please use another number.');
+            }
+            Session::flash('error', 'OPD Number already exists. Please use another number.');
+            $this->redirect('patients/create');
+        }
+
         $id = Database::insert('patients', [
             'patient_code' => $code,
             'name' => $data['name'],
@@ -377,7 +389,20 @@ class PatientController extends Controller
             'mobile' => 'required|max:20',
         ]);
 
+        $code = trim((string) $request->input('patient_code', ''));
+        if ($code === '') {
+            $code = (string) ($patient['patient_code'] ?? $this->nextPatientCode());
+        }
+        if ($this->patientCodeExists($code, (int) $id)) {
+            if ($request->isAjax()) {
+                $this->jsonError('OPD Number already exists. Please use another number.');
+            }
+            Session::flash('error', 'OPD Number already exists. Please use another number.');
+            $this->redirect('patients/' . $id . '/edit');
+        }
+
         $payload = [
+            'patient_code' => $code,
             'name' => $data['name'],
             'mobile' => $data['mobile'],
             'alternate_mobile' => $request->input('alternate_mobile'),
@@ -758,8 +783,24 @@ class PatientController extends Controller
 
     private function nextPatientCode(): string
     {
-        $row = Database::fetch('SELECT COUNT(*) c FROM patients');
-        return 'PAT' . str_pad(((int) ($row['c'] ?? 0)) + 1, 5, '0', STR_PAD_LEFT);
+        $row = Database::fetch(
+            "SELECT MAX(CAST(SUBSTRING(patient_code, 4) AS UNSIGNED)) AS max_num
+             FROM patients
+             WHERE patient_code REGEXP '^PAT[0-9]+$'"
+        );
+        $next = ((int) ($row['max_num'] ?? 0)) + 1;
+        return 'PAT' . str_pad($next, 5, '0', STR_PAD_LEFT);
+    }
+
+    private function patientCodeExists(string $code, ?int $ignoreId = null): bool
+    {
+        $sql = 'SELECT id FROM patients WHERE patient_code = ? AND deleted_at IS NULL';
+        $params = [$code];
+        if ($ignoreId) {
+            $sql .= ' AND id != ?';
+            $params[] = $ignoreId;
+        }
+        return (bool) Database::fetch($sql . ' LIMIT 1', $params);
     }
 
     private function ageFromDob(?string $dob): ?int
