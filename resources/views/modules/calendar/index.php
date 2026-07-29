@@ -120,19 +120,53 @@ require __DIR__ . '/../../components/page-header.php';
                     </div>
                     <div id="quickPatient" class="collapse col-12 appointment-only">
                         <div class="book-slot-quick-box">
+                            <div class="fw-semibold mb-2"><i class="bi bi-person-plus me-1"></i>Quick Add Patient</div>
                             <div class="row g-2">
-                                <div class="col-md-4"><input class="form-control" id="quickName" placeholder="Patient Name"></div>
-                                <div class="col-md-3"><input class="form-control" id="quickMobile" placeholder="Mobile"></div>
                                 <div class="col-md-3">
+                                    <label class="form-label">OPD Number <span class="required-star">*</span></label>
+                                    <input class="form-control" id="quickOpd" value="<?= e($suggestedOpdNumber ?? '') ?>" placeholder="Auto generated">
+                                    <div class="form-text">Auto generated — editable</div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Name <span class="required-star">*</span></label>
+                                    <input class="form-control" id="quickName" placeholder="Patient name">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Mobile <span class="required-star">*</span></label>
+                                    <input class="form-control" id="quickMobile" placeholder="Mobile">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Gender</label>
                                     <select class="form-select" id="quickGender">
-                                        <option value="">Gender</option>
+                                        <option value="">Select</option>
                                         <option value="male">Male</option>
                                         <option value="female">Female</option>
                                         <option value="other">Other</option>
                                     </select>
                                 </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Registration Date</label>
+                                    <input class="form-control" type="date" id="quickRegDate" value="<?= e(date('Y-m-d')) ?>">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">DOB</label>
+                                    <input class="form-control" type="date" id="quickDob">
+                                </div>
                                 <div class="col-md-2">
-                                    <button type="button" class="btn btn-outline-primary w-100" id="btnQuickPatient">Add</button>
+                                    <label class="form-label">Age</label>
+                                    <input class="form-control" type="number" id="quickAge" placeholder="Age" min="0" max="150">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Reference Doctor</label>
+                                    <select class="form-select" id="quickRefDoctor">
+                                        <option value="">None</option>
+                                        <?php foreach (($referenceDoctors ?? []) as $doc): ?>
+                                            <option value="<?= e($doc['id']) ?>"><?= e($doc['name']) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-12 d-flex justify-content-end">
+                                    <button type="button" class="btn btn-outline-primary px-4" id="btnQuickPatient">Add Patient</button>
                                 </div>
                             </div>
                         </div>
@@ -268,15 +302,20 @@ document.addEventListener('DOMContentLoaded', function () {
   document.getElementById('btnQuickPatient')?.addEventListener('click', function () {
     const name = document.getElementById('quickName').value.trim();
     const mobile = document.getElementById('quickMobile').value.trim();
-    if (!name || !mobile) {
-      toastr.warning('Name and mobile are required.');
+    const patientCode = document.getElementById('quickOpd').value.trim();
+    if (!patientCode || !name || !mobile) {
+      toastr.warning('OPD Number, Name and Mobile are required.');
       return;
     }
     RootsApp.post('<?= app_url('patients') ?>', {
+      patient_code: patientCode,
       name: name,
       mobile: mobile,
       gender: document.getElementById('quickGender').value,
-      registration_date: '<?= date('Y-m-d') ?>'
+      registration_date: document.getElementById('quickRegDate').value || '<?= date('Y-m-d') ?>',
+      dob: document.getElementById('quickDob').value || '',
+      age: document.getElementById('quickAge').value || '',
+      reference_doctor_id: document.getElementById('quickRefDoctor').value || ''
     }).done(function (res) {
       toastr.success(res.message || 'Patient created successfully.');
       const p = res.data || {};
@@ -286,11 +325,35 @@ document.addEventListener('DOMContentLoaded', function () {
         patientData.unshift({ id: id, text: text });
         initPatientSelect(id);
       }
+      document.getElementById('quickName').value = '';
+      document.getElementById('quickMobile').value = '';
+      document.getElementById('quickGender').value = '';
+      document.getElementById('quickDob').value = '';
+      document.getElementById('quickAge').value = '';
+      document.getElementById('quickRefDoctor').value = '';
+      document.getElementById('quickRegDate').value = '<?= date('Y-m-d') ?>';
+      const used = (p.patient_code || patientCode || '').match(/^PAT(\d+)$/i);
+      if (used) {
+        document.getElementById('quickOpd').value = 'PAT' + String(parseInt(used[1], 10) + 1).padStart(5, '0');
+      }
       const collapse = bootstrap.Collapse.getOrCreateInstance(document.getElementById('quickPatient'), { toggle: false });
       collapse.hide();
     }).fail(function (xhr) {
       toastr.error((xhr.responseJSON && xhr.responseJSON.message) || 'Unable to add patient.');
     });
+  });
+
+  document.getElementById('quickDob')?.addEventListener('change', function () {
+    if (!this.value) return;
+    const birth = new Date(this.value);
+    if (Number.isNaN(birth.getTime())) return;
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age -= 1;
+    if (age >= 0 && age <= 150) {
+      document.getElementById('quickAge').value = String(age);
+    }
   });
 
   function pad2(n) { return String(n).padStart(2, '0'); }

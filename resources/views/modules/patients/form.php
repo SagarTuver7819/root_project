@@ -23,7 +23,7 @@ $cancelUrl = $isEdit ? app_url('patients/' . $patient['id']) : app_url('patients
             <h3 class="h6">Basic</h3>
             <div class="row g-3">
                 <div class="col-md-3">
-                    <label class="form-label">OPD Number *</label>
+                    <label class="form-label">OPD Number <span class="required-star">*</span></label>
                     <input
                         class="form-control"
                         name="patient_code"
@@ -34,11 +34,11 @@ $cancelUrl = $isEdit ? app_url('patients/' . $patient['id']) : app_url('patients
                     <div class="form-text">Auto generated — you can edit if needed.</div>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">Name *</label>
+                    <label class="form-label">Name <span class="required-star">*</span></label>
                     <input class="form-control" name="name" value="<?= e(old('name', $patient['name'] ?? '')) ?>" required>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Mobile *</label>
+                    <label class="form-label">Mobile <span class="required-star">*</span></label>
                     <input class="form-control" name="mobile" value="<?= e(old('mobile', $patient['mobile'] ?? '')) ?>" required>
                 </div>
                 <div class="col-md-2">

@@ -27,7 +27,22 @@ class CalendarController extends \App\Core\Controller
                 'SELECT id, patient_code, name, mobile FROM patients WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name ASC LIMIT 100'
             ),
             'treatments' => $this->options('treatment_masters', 'name', 'is_active = 1'),
+            'referenceDoctors' => Database::fetchAll(
+                'SELECT id, name FROM reference_doctors WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name'
+            ),
+            'suggestedOpdNumber' => $this->nextSuggestedOpdNumber(),
         ]);
+    }
+
+    private function nextSuggestedOpdNumber(): string
+    {
+        $row = Database::fetch(
+            "SELECT MAX(CAST(SUBSTRING(patient_code, 4) AS UNSIGNED)) AS max_num
+             FROM patients
+             WHERE patient_code REGEXP '^PAT[0-9]+$'"
+        );
+        $next = ((int) ($row['max_num'] ?? 0)) + 1;
+        return 'PAT' . str_pad($next, 5, '0', STR_PAD_LEFT);
     }
 
     public function events(Request $request): void
