@@ -79,16 +79,12 @@ Database::query('DELETE FROM role_permissions WHERE role_id = ?', [$roleIds['rec
 $receptionPerms = [
     'dashboard.view',
     'calendar.view', 'calendar.add', 'calendar.edit',
-    'appointments.view', 'appointments.add', 'appointments.edit', 'appointments.status_change', 'appointments.print',
+    'appointments.view', 'appointments.add', 'appointments.edit', 'appointments.status_change',
     'queue.view', 'queue.status_change',
     'patients.view', 'patients.add', 'patients.edit', 'patients.print',
-    'follow_ups.view', 'follow_ups.add', 'follow_ups.edit', 'follow_ups.status_change',
-    'visits.view', 'visits.add',
-    'prescriptions.view', 'prescriptions.print',
-    'doctors.view', 'reference_doctors.view', 'treatment_masters.view',
     'billing.view', 'billing.add', 'billing.edit', 'billing.print',
     'payments.view', 'payments.add', 'payments.print',
-    'outstanding.view', 'outstanding.export',
+    'outstanding.view',
 ];
 foreach ($receptionPerms as $slug) {
     if (isset($permissionIds[$slug])) {
@@ -103,7 +99,7 @@ $doctorPerms = [
     'calendar.view', 'calendar.add', 'calendar.edit',
     'appointments.view', 'appointments.add', 'appointments.edit', 'appointments.status_change', 'appointments.print',
     'queue.view', 'queue.status_change',
-    'patients.view', 'patients.print',
+    'patients.view', 'patients.edit', 'patients.print',
     'visits.view', 'visits.add', 'visits.edit',
     'treatments.view', 'treatments.add', 'treatments.edit', 'treatments.status_change',
     'treatment_sessions.view', 'treatment_sessions.add', 'treatment_sessions.edit',

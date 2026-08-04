@@ -172,13 +172,64 @@ $cancelUrl = $isEdit ? app_url('patients/' . $patient['id']) : app_url('patients
             </div>
         </div>
     <?php else: ?>
+        <div class="card content-card mb-3">
+            <div class="card-body">
+                <h3 class="h6 mb-1">Send to Doctor</h3>
+                <p class="text-muted small mb-3">Patient details save thay pachi free doctor pase mokli do. Doctor patient name par click kari ne treatment details add karse.</p>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Assign Doctor</label>
+                        <select class="form-select" name="assign_doctor_id" id="assignDoctorId">
+                            <option value="">Select free doctor</option>
+                            <?php foreach (($availableDoctors ?? []) as $doc):
+                                $label = doctor_label($doc['name'] ?? '');
+                                if (!empty($doc['is_on_leave'])) {
+                                    $label .= ' — On leave';
+                                } elseif (!empty($doc['is_free'])) {
+                                    $label .= ' — Free';
+                                } else {
+                                    $label .= ' — Busy (' . (int) ($doc['busy_count'] ?? 0) . ')';
+                                }
+                                $disabled = !empty($doc['is_on_leave']);
+                                $selected = (string) old('assign_doctor_id', '') === (string) $doc['id'];
+                            ?>
+                                <option
+                                    value="<?= e((string) $doc['id']) ?>"
+                                    <?= $selected ? 'selected' : '' ?>
+                                    <?= $disabled ? 'disabled' : '' ?>
+                                    data-color="<?= e($doc['calendar_color'] ?? '#00AEEF') ?>"
+                                ><?= e($label) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Visit Reason</label>
+                        <input class="form-control" name="visit_reason" value="<?= e(old('visit_reason', 'Walk-in consultation')) ?>" placeholder="e.g. Pain, checkup, RCT follow-up">
+                    </div>
+                </div>
+                <?php if (!empty($availableDoctors)): ?>
+                    <div class="d-flex flex-wrap gap-2 mt-3">
+                        <?php foreach ($availableDoctors as $doc): ?>
+                            <span class="badge rounded-pill border" style="border-color:<?= e($doc['calendar_color'] ?? '#00AEEF') ?>!important;color:#334155;background:#fff">
+                                <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:<?= e($doc['calendar_color'] ?? '#00AEEF') ?>;margin-right:4px"></span>
+                                <?= e(doctor_label($doc['name'] ?? '')) ?>
+                                · <?= !empty($doc['is_on_leave']) ? 'Leave' : (!empty($doc['is_free']) ? 'Free' : 'Busy') ?>
+                            </span>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
         <div class="card content-card">
             <div class="card-body">
                 <div class="d-flex gap-2 flex-wrap">
-                    <button type="submit" class="btn btn-primary" name="submit_action" value="save">Save</button>
                     <?php if (!$isEdit): ?>
-                        <button type="submit" class="btn btn-outline-primary" name="submit_action" value="save_new">Save & New</button>
-                        <button type="submit" class="btn btn-outline-primary" name="submit_action" value="book">Save & Book</button>
+                        <button type="submit" class="btn btn-primary" name="submit_action" value="send_doctor">
+                            <i class="bi bi-person-check me-1"></i>Save &amp; Send to Doctor
+                        </button>
+                        <button type="submit" class="btn btn-outline-primary" name="submit_action" value="save_new">Save &amp; New</button>
+                    <?php else: ?>
+                        <button type="submit" class="btn btn-primary" name="submit_action" value="save">Save</button>
                     <?php endif; ?>
                     <a class="btn btn-light" href="<?= $cancelUrl ?>">Cancel</a>
                 </div>

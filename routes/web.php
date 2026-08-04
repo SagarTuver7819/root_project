@@ -130,6 +130,7 @@ $router->group(['middleware' => ['auth']], function ($router) {
     $router->get('/visits', [VisitController::class, 'index'], ['permission:visits.view']);
     $router->get('/visits/datatable', [VisitController::class, 'datatable'], ['permission:visits.view']);
     $router->post('/visits/start/{appointmentId}', [VisitController::class, 'start'], ['csrf', 'permission:visits.add']);
+    $router->get('/visits/open/{appointmentId}', [VisitController::class, 'open'], ['permission:visits.add']);
     $router->get('/visits/{id}', [VisitController::class, 'show'], ['permission:visits.view']);
     $router->get('/visits/{id}/edit', [VisitController::class, 'edit'], ['permission:visits.edit']);
     $router->get('/visits/{id}/print', [VisitController::class, 'print'], ['permission:visits.view']);

@@ -158,7 +158,8 @@ $renderTooth = static function ($toothId) use ($toothNotes): void {
         </div>
 
         <div class="col-12">
-            <div class="fw-semibold mb-2">8. Next Appt</div>
+            <div class="fw-semibold mb-2">8. Next Appt (Treatment — Calendar)</div>
+            <div class="text-muted small mb-2">Aa date/time treatment appointment calendar ma book thase. Doctor + free slot select karo (overlap slot par error aavse with details).</div>
             <div class="row g-3">
                 <div class="col-md-3">
                     <label class="form-label">Date</label>
@@ -185,9 +186,108 @@ $renderTooth = static function ($toothId) use ($toothNotes): void {
             </select>
         </div>
 
+        <?php
+        $lab = $labWork ?? [];
+        $implant = $implantWork ?? [];
+        ?>
+
+        <div class="col-12">
+            <div class="fw-semibold mb-2">10. Lab work</div>
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Product</label>
+                    <input class="form-control" name="lab_product" value="<?= e($lab['product'] ?? '') ?>" <?= $canEdit ? '' : 'readonly' ?>>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Shade</label>
+                    <input class="form-control" name="lab_shade" value="<?= e($lab['shade'] ?? '') ?>" <?= $canEdit ? '' : 'readonly' ?>>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Brand</label>
+                    <input class="form-control" name="lab_brand" value="<?= e($lab['brand'] ?? '') ?>" <?= $canEdit ? '' : 'readonly' ?>>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Lab (which lab)</label>
+                    <input class="form-control" name="lab_name" value="<?= e($lab['lab_name'] ?? '') ?>" <?= $canEdit ? '' : 'readonly' ?>>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12">
+            <div class="fw-semibold mb-2">11. Implant work</div>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">A. Brand / Company of Implant</label>
+                    <input class="form-control" name="implant_brand" value="<?= e($implant['brand'] ?? '') ?>" <?= $canEdit ? '' : 'readonly' ?>>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">B. Internal Hex / Multiunit</label>
+                    <select class="form-select" name="implant_hex_type" <?= $canEdit ? '' : 'disabled' ?>>
+                        <?php $hex = (string) ($implant['hex_type'] ?? ''); ?>
+                        <option value="">Select</option>
+                        <option value="internal_hex" <?= $hex === 'internal_hex' ? 'selected' : '' ?>>Internal Hex</option>
+                        <option value="multiunit" <?= $hex === 'multiunit' ? 'selected' : '' ?>>Multiunit</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">C. Healing cap</label>
+                    <select class="form-select" name="implant_healing_cap" <?= $canEdit ? '' : 'disabled' ?>>
+                        <?php $hc = (string) ($implant['healing_cap'] ?? ''); ?>
+                        <option value="">Select</option>
+                        <option value="yes" <?= $hc === 'yes' ? 'selected' : '' ?>>Yes</option>
+                        <option value="no" <?= $hc === 'no' ? 'selected' : '' ?>>No</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">D. Loading</label>
+                    <select class="form-select" name="implant_loading" <?= $canEdit ? '' : 'disabled' ?>>
+                        <?php $ld = (string) ($implant['loading'] ?? ''); ?>
+                        <option value="">Select</option>
+                        <option value="immediate" <?= $ld === 'immediate' ? 'selected' : '' ?>>Immediate Loading</option>
+                        <option value="delayed" <?= $ld === 'delayed' ? 'selected' : '' ?>>Delayed Loading</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">F. Product for lab</label>
+                    <input class="form-control" name="implant_lab_product" value="<?= e($implant['lab_product'] ?? '') ?>" <?= $canEdit ? '' : 'readonly' ?>>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">E. Next Appt Date</label>
+                    <input class="form-control" type="date" name="implant_next_date" value="<?= e($implant['next_date'] ?? '') ?>" <?= $canEdit ? '' : 'readonly' ?>>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">E. Next Appt Time</label>
+                    <input class="form-control" type="time" name="implant_next_time" value="<?= e(isset($implant['next_time']) ? substr((string) $implant['next_time'], 0, 5) : '') ?>" <?= $canEdit ? '' : 'readonly' ?>>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">E. Work to be done</label>
+                    <input class="form-control" name="implant_work_done" value="<?= e($implant['work_to_be_done'] ?? '') ?>" <?= $canEdit ? '' : 'readonly' ?>>
+                    <div class="form-text">Implant next appt pan alag treatment slot tarike calendar ma book thase.</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">F.a Substructure</label>
+                    <select class="form-select" name="implant_substructure" <?= $canEdit ? '' : 'disabled' ?>>
+                        <?php $sub = (string) ($implant['substructure'] ?? ''); ?>
+                        <option value="">Select</option>
+                        <option value="co_cr" <?= $sub === 'co_cr' ? 'selected' : '' ?>>Co-Cr</option>
+                        <option value="titanium" <?= $sub === 'titanium' ? 'selected' : '' ?>>Titanium</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">F.b Superstructure</label>
+                    <input class="form-control" name="implant_superstructure" value="<?= e($implant['superstructure'] ?? '') ?>" <?= $canEdit ? '' : 'readonly' ?>>
+                </div>
+                <div class="col-12">
+                    <label class="form-label">B. Notation (tooth notes for implant)</label>
+                    <textarea class="form-control" name="implant_notation" rows="2" placeholder="Palmer / tooth notation notes" <?= $canEdit ? '' : 'readonly' ?>><?= e($implant['notation'] ?? '') ?></textarea>
+                </div>
+            </div>
+        </div>
+
         <?php if ($canEdit): ?>
         <div class="col-12">
             <button type="submit" class="btn btn-primary">Save Clinical Chart</button>
+            <span class="text-muted small ms-2">Save pachi Next Appt calendar ma auto book thase</span>
         </div>
         <?php endif; ?>
     </div>

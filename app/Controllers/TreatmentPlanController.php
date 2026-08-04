@@ -37,7 +37,20 @@ class TreatmentPlanController extends \App\Core\Controller
 
     public function create(Request $request): void
     {
-        $this->view('modules/treatment-plans/form', $this->formData(null, 'Add Treatment Plan'));
+        $plan = [
+            'patient_id' => $request->query('patient_id') ?: null,
+            'doctor_id' => $request->query('doctor_id') ?: null,
+            'description' => $request->query('appointment_id') ? ('From appointment #' . $request->query('appointment_id')) : '',
+            'start_date' => date('Y-m-d'),
+            'status' => 'started',
+        ];
+        $this->view('modules/treatment-plans/form', array_merge(
+            $this->formData($plan, 'Add Treatment Plan'),
+            [
+                'fromCalendar' => (string) $request->query('from_calendar') === '1',
+                'appointmentId' => $request->query('appointment_id'),
+            ]
+        ));
     }
 
     public function store(Request $request): void

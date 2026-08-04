@@ -76,7 +76,7 @@ class CalendarController extends \App\Core\Controller
         }
 
         $rows = Database::fetchAll(
-            'SELECT a.*, p.name AS patient_name, p.mobile, d.name AS doctor_name, tm.name AS treatment_name
+            'SELECT a.*, p.name AS patient_name, p.mobile, d.name AS doctor_name, d.id AS doctor_pk, tm.name AS treatment_name
              FROM appointments a
              LEFT JOIN patients p ON p.id = a.patient_id
              INNER JOIN doctors d ON d.id = a.doctor_id
@@ -90,15 +90,19 @@ class CalendarController extends \App\Core\Controller
             $remarkText = trim((string) ($row['notes'] ?: $row['visit_reason'] ?: 'Doctor Remark'));
             $treatment = trim((string) ($row['treatment_name'] ?? ''));
             $patient = trim((string) ($row['patient_name'] ?? ''));
+            $mobile = trim((string) ($row['mobile'] ?? ''));
+            $doctorColor = doctor_calendar_color((int) ($row['doctor_pk'] ?? $row['doctor_id'] ?? 0), $row);
 
             if ($isRemark) {
                 $title = $remarkText;
                 $color = '#DC2626';
                 $className = 'fc-entry-remark';
             } else {
-                $parts = array_filter([$patient, $treatment ?: null]);
+                // Google Calendar style: Patient · Treatment/Test · Phone
+                $reason = trim((string) ($row['visit_reason'] ?? $row['notes'] ?? ''));
+                $parts = array_filter([$patient, $treatment ?: ($reason ?: null), $mobile ?: null]);
                 $title = implode(' · ', $parts) ?: doctor_label($row['doctor_name'] ?? '');
-                $color = appointment_status_color((string) ($row['status'] ?? 'scheduled'));
+                $color = $doctorColor;
                 $className = 'fc-status-' . str_replace('_', '-', (string) $row['status']);
             }
 
@@ -112,14 +116,18 @@ class CalendarController extends \App\Core\Controller
                 'textColor' => '#ffffff',
                 'className' => $className,
                 'extendedProps' => [
+                    'patient_id' => $row['patient_id'] ?? null,
+                    'doctor_id' => $row['doctor_id'] ?? null,
                     'code' => $row['appointment_code'] ?? '',
                     'status' => $row['status'],
                     'entry_type' => $row['entry_type'] ?? 'appointment',
                     'patient_name' => $patient,
                     'doctor_name' => doctor_label($row['doctor_name'] ?? ''),
                     'treatment_name' => $treatment,
+                    'visit_reason' => $row['visit_reason'] ?? null,
                     'notes' => $row['notes'],
-                    'mobile' => $row['mobile'] ?? null,
+                    'mobile' => $mobile ?: null,
+                    'doctor_color' => $doctorColor,
                 ],
             ];
         }, $rows);

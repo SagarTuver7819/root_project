@@ -1,29 +1,25 @@
 <?php
-$actions = '<a href="' . app_url('calendar') . '" class="btn btn-primary"><i class="bi bi-calendar3 me-1"></i>Open Calendar</a>'
+$actions = '<a href="' . app_url('patients/create') . '" class="btn btn-light"><i class="bi bi-person-plus me-1"></i>Add Patient</a>'
+    . '<a href="' . app_url('calendar') . '" class="btn btn-primary"><i class="bi bi-calendar3 me-1"></i>Week Calendar</a>'
     . '<a href="' . app_url('billing') . '" class="btn btn-light"><i class="bi bi-receipt me-1"></i>Billing</a>';
 require __DIR__ . '/../../components/page-header.php';
 
 $statCards = [
     ['Patients', 'patients', 'bi-people', 'cyan', app_url('patients')],
     ['Doctors', 'doctors', 'bi-heart-pulse', 'teal', app_url('doctors')],
-    ['Appointments Today', 'appointments_today', 'bi-calendar-check', 'blue', app_url('appointments')],
-    ['Visits Today', 'visits_today', 'bi-clipboard2-pulse', 'indigo', app_url('visits')],
+    ['Appointments Today', 'appointments_today', 'bi-calendar-check', 'blue', app_url('calendar')],
     ['Pending Payments', 'pending_payments', 'bi-exclamation-circle', 'amber', app_url('outstanding'), true],
     ['Revenue Today', 'revenue_today', 'bi-cash-coin', 'green', app_url('payments'), true],
-    ['Low Stock', 'low_stock', 'bi-box-seam', 'rose', app_url('inventory')],
     ['Active Treatments', 'treatments_active', 'bi-activity', 'sky', app_url('treatment-plans')],
 ];
 
 $queueMeta = [
-    'scheduled' => ['color' => '#3B82F6', 'icon' => 'bi-calendar2'],
-    'confirmed' => ['color' => '#0EA5E9', 'icon' => 'bi-check2-circle'],
     'waiting' => ['color' => '#F59E0B', 'icon' => 'bi-hourglass-split'],
-    'checked_in' => ['color' => '#8B5CF6', 'icon' => 'bi-door-open'],
     'with_doctor' => ['color' => '#6366F1', 'icon' => 'bi-person-video2'],
+    'scheduled' => ['color' => '#3B82F6', 'icon' => 'bi-calendar2'],
     'completed' => ['color' => '#22C55E', 'icon' => 'bi-check-lg'],
-    'cancelled' => ['color' => '#EF4444', 'icon' => 'bi-x-circle'],
-    'no_show' => ['color' => '#94A3B8', 'icon' => 'bi-person-x'],
 ];
+$doctors = $doctors ?? [];
 ?>
 <div class="row g-3 mb-4">
 <?php foreach ($statCards as $card):
@@ -31,7 +27,7 @@ $queueMeta = [
     $isMoney = !empty($card[5]);
     $value = $isMoney ? format_money($stats[$key] ?? 0) : (string) ($stats[$key] ?? 0);
 ?>
-    <div class="col-sm-6 col-xl-3">
+    <div class="col-sm-6 col-xl-4">
         <a href="<?= e($href) ?>" class="dash-stat dash-stat-<?= e($tone) ?> text-decoration-none">
             <div class="dash-stat-icon"><i class="bi <?= e($icon) ?>"></i></div>
             <div class="dash-stat-body">
@@ -49,18 +45,17 @@ $queueMeta = [
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                     <div>
-                        <h3 class="h5 mb-1">Calendar View</h3>
-                        <div class="text-muted small">Color-coded appointments &amp; doctor remarks</div>
+                        <h3 class="h5 mb-1">Doctor-wise Week Calendar</h3>
+                        <div class="text-muted small">Recent week · colors = doctors (Google Calendar style)</div>
                     </div>
                     <a href="<?= app_url('calendar') ?>" class="btn btn-sm btn-outline-primary">Full Calendar</a>
                 </div>
                 <div class="calendar-legend mb-3 justify-content-start">
-                    <span class="legend-pill"><i style="background:#3B82F6"></i>Scheduled</span>
-                    <span class="legend-pill"><i style="background:#0EA5E9"></i>Confirmed</span>
-                    <span class="legend-pill"><i style="background:#F59E0B"></i>Waiting</span>
-                    <span class="legend-pill"><i style="background:#6366F1"></i>With Doctor</span>
-                    <span class="legend-pill"><i style="background:#22C55E"></i>Completed</span>
-                    <span class="legend-pill legend-remark"><i style="background:#DC2626"></i>Doctor Remark</span>
+                    <?php foreach ($doctors as $doc): ?>
+                        <span class="legend-pill">
+                            <i style="background:<?= e(doctor_calendar_color((int) $doc['id'], $doc)) ?>"></i><?= e(doctor_label($doc['name'] ?? '')) ?>
+                        </span>
+                    <?php endforeach; ?>
                 </div>
                 <div id="dashboardCalendar" class="dashboard-calendar"></div>
             </div>
@@ -74,14 +69,12 @@ $queueMeta = [
                     <a href="<?= app_url('queue') ?>" class="small">Open Queue</a>
                 </div>
                 <div class="row g-2">
-                    <?php foreach (($queue ?? []) as $status => $count):
-                        $meta = $queueMeta[$status] ?? ['color' => '#94A3B8', 'icon' => 'bi-circle'];
-                    ?>
+                    <?php foreach ($queueMeta as $status => $meta): ?>
                         <div class="col-6">
                             <div class="dash-queue-card" style="--q-color: <?= e($meta['color']) ?>">
                                 <div class="dash-queue-top">
                                     <span class="dash-queue-icon"><i class="bi <?= e($meta['icon']) ?>"></i></span>
-                                    <strong class="dash-queue-count"><?= e((string) $count) ?></strong>
+                                    <strong class="dash-queue-count"><?= e((string) ($queue[$status] ?? 0)) ?></strong>
                                 </div>
                                 <div class="dash-queue-label"><?= e(ucwords(str_replace('_', ' ', $status))) ?></div>
                             </div>
@@ -134,12 +127,13 @@ document.addEventListener('DOMContentLoaded', function () {
   if (!window.FullCalendar) return;
   const cal = new FullCalendar.Calendar(document.getElementById('dashboardCalendar'), {
     initialView: 'timeGridWeek',
+    firstDay: 1,
     headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridDay,timeGridWeek' },
     buttonText: { today: 'Today', day: 'Day', week: 'Week' },
     height: 560,
     expandRows: true,
-    slotMinTime: '08:00:00',
-    slotMaxTime: '21:00:00',
+    slotMinTime: '07:00:00',
+    slotMaxTime: '22:00:00',
     slotDuration: '00:30:00',
     slotLabelInterval: '01:00:00',
     allDaySlot: false,
@@ -175,16 +169,23 @@ document.addEventListener('DOMContentLoaded', function () {
     events: function (info, success, failure) {
       const params = new URLSearchParams({ start: info.startStr, end: info.endStr });
       fetch('<?= app_url('calendar/events') ?>?' + params.toString(), {
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+        credentials: 'same-origin'
       }).then(r => r.json()).then(success).catch(failure);
     },
     eventClick: function (info) {
-      const code = (info.event && info.event.extendedProps && info.event.extendedProps.code) || (info.event && info.event.id) || '';
-      if (code) {
-        window.location.href = '<?= app_url('queue') ?>?highlight=' + encodeURIComponent(code) + '&id=' + encodeURIComponent(info.event.id);
-      } else {
-        window.location.href = '<?= app_url('queue') ?>';
+      const props = info.event.extendedProps || {};
+      const patientId = props.patient_id || '';
+      const id = info.event.id || '';
+      if ((props.entry_type || '') === 'walk_in' && id) {
+        window.location.href = '<?= app_url('visits/open') ?>/' + encodeURIComponent(id);
+        return;
       }
+      if (patientId) {
+        window.location.href = '<?= app_url('patients') ?>/' + encodeURIComponent(patientId) + '?tab=treatments';
+        return;
+      }
+      window.location.href = '<?= app_url('calendar') ?>';
     }
   });
   cal.render();

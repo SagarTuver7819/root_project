@@ -1,14 +1,15 @@
 <?php
-$actions = '<a href="' . app_url('queue') . '" class="btn btn-light"><i class="bi bi-people me-1"></i>Queue</a>'
-    . '<button type="button" class="btn btn-primary btn-book-slot" id="btnOpenBook"><i class="bi bi-calendar-plus me-1"></i>Book Slot</button>';
+$actions = '<a href="' . app_url('patients/create') . '" class="btn btn-light"><i class="bi bi-person-plus me-1"></i>Add Patient</a>'
+    . '<a href="' . app_url('queue') . '" class="btn btn-light"><i class="bi bi-people me-1"></i>Queue</a>'
+    . '<button type="button" class="btn btn-primary btn-book-slot" id="btnOpenBook"><i class="bi bi-calendar-plus me-1"></i>Book Treatment Slot</button>';
 require __DIR__ . '/../../components/page-header.php';
 ?>
 <div class="calendar-shell">
     <div class="calendar-toolbar card content-card mb-3">
         <div class="card-body py-3">
             <div class="row g-3 align-items-end">
-            <div class="col-md-3">
-                <label class="form-label">Doctor</label>
+            <div class="col-md-4">
+                <label class="form-label">Doctor-wise filter</label>
                 <?php $lockedDoctorId = $lockedDoctorId ?? null; ?>
                 <select id="doctorFilter" class="form-select" <?= $lockedDoctorId ? 'disabled' : '' ?>>
                     <?php if (!$lockedDoctorId): ?>
@@ -22,33 +23,18 @@ require __DIR__ . '/../../components/page-header.php';
                     <input type="hidden" id="lockedDoctorId" value="<?= e((string) $lockedDoctorId) ?>">
                 <?php endif; ?>
             </div>
-                <div class="col-md-3">
-                    <label class="form-label">Status</label>
-                    <select id="statusFilter" class="form-select">
-                        <option value="">All</option>
-                        <option value="scheduled">Scheduled</option>
-                        <option value="confirmed">Confirmed</option>
-                        <option value="checked_in">Checked-In</option>
-                        <option value="waiting">Waiting</option>
-                        <option value="with_doctor">With Doctor</option>
-                        <option value="completed">Completed</option>
-                        <option value="cancelled">Cancelled</option>
-                        <option value="no_show">No Show</option>
-                    </select>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label d-block">Color Legend</label>
+                <div class="col-md-8">
+                    <label class="form-label d-block">Doctor colors (like Google Calendar)</label>
                     <div class="calendar-legend">
-                        <span class="legend-pill"><i style="background:#3B82F6"></i>Scheduled</span>
-                        <span class="legend-pill"><i style="background:#0EA5E9"></i>Confirmed</span>
-                        <span class="legend-pill"><i style="background:#F59E0B"></i>Waiting</span>
-                        <span class="legend-pill"><i style="background:#8B5CF6"></i>Checked In</span>
-                        <span class="legend-pill"><i style="background:#6366F1"></i>With Doctor</span>
-                        <span class="legend-pill"><i style="background:#22C55E"></i>Completed</span>
-                        <span class="legend-pill legend-remark"><i style="background:#DC2626"></i>Doctor Remark</span>
+                        <?php foreach (($doctors ?? []) as $d): ?>
+                            <span class="legend-pill">
+                                <i style="background:<?= e(doctor_calendar_color((int) $d['id'], $d)) ?>"></i><?= e(doctor_label($d['name'] ?? '')) ?>
+                            </span>
+                        <?php endforeach; ?>
                     </div>
                 </div>
             </div>
+            <div class="text-muted small mt-2">Recent week view · click appointment → open treatment / visit</div>
         </div>
     </div>
 
@@ -379,17 +365,17 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   document.getElementById('btnOpenBook')?.addEventListener('click', function () {
-    openBookModal('2026-07-28', '10:00');
+    openBookModal('<?= date('Y-m-d') ?>', '10:00');
   });
 
   if (window.FullCalendar) {
     const cal = new FullCalendar.Calendar(document.getElementById('calendar'), {
       initialView: 'timeGridWeek',
-      initialDate: '2026-07-28',
+      firstDay: 1,
       headerToolbar: {
         left: 'prev,next today',
         center: 'title',
-        right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        right: 'timeGridWeek,timeGridDay,dayGridMonth'
       },
       buttonText: {
         today: 'Today',
@@ -399,8 +385,8 @@ document.addEventListener('DOMContentLoaded', function () {
       },
       height: 'auto',
       expandRows: true,
-      slotMinTime: '08:00:00',
-      slotMaxTime: '21:00:00',
+      slotMinTime: '07:00:00',
+      slotMaxTime: '22:00:00',
       slotDuration: '00:30:00',
       slotLabelInterval: '01:00:00',
       slotLabelFormat: {
@@ -442,15 +428,16 @@ document.addEventListener('DOMContentLoaded', function () {
       selectMirror: true,
       eventDisplay: 'block',
       dayMaxEvents: true,
+      stickyHeaderDates: true,
       events: function (info, success, failure) {
         const params = new URLSearchParams({
           start: info.startStr,
           end: info.endStr,
-          doctor_id: (document.getElementById('lockedDoctorId')?.value || document.getElementById('doctorFilter').value),
-          status: document.getElementById('statusFilter').value
+          doctor_id: (document.getElementById('lockedDoctorId')?.value || document.getElementById('doctorFilter').value || '')
         });
         fetch('<?= app_url('calendar/events') ?>?' + params.toString(), {
-          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+          credentials: 'same-origin'
         })
           .then(r => r.json())
           .then(success)
@@ -464,22 +451,48 @@ document.addEventListener('DOMContentLoaded', function () {
         openBookModal(info.dateStr, timeStr);
       },
       eventClick: function (info) {
-        const code = (info.event.extendedProps && info.event.extendedProps.code) || '';
+        const props = info.event.extendedProps || {};
+        const entryType = props.entry_type || 'appointment';
+        const patientId = props.patient_id || '';
+        const doctorId = props.doctor_id || '';
         const id = info.event.id || '';
-        let target = '<?= app_url('queue') ?>?';
-        if (code) {
-          target += 'highlight=' + encodeURIComponent(code) + '&';
+
+        if (entryType === 'doctor_remark') {
+          return;
         }
+
+        // Walk-in / waiting patients → open doctor visit/clinical
+        if (entryType === 'walk_in' || ['waiting', 'checked_in', 'with_doctor'].includes(props.status || '')) {
+          if (id) {
+            window.location.href = '<?= app_url('visits/open') ?>/' + encodeURIComponent(id);
+            return;
+          }
+        }
+
+        // Treatment appointment → go to treatment plan (then history/billing from patient)
+        if (patientId) {
+          const qs = new URLSearchParams({
+            patient_id: String(patientId),
+            doctor_id: String(doctorId || ''),
+            appointment_id: String(id || ''),
+            from_calendar: '1'
+          });
+          <?php if (can('treatments.add')): ?>
+          window.location.href = '<?= app_url('treatment-plans/create') ?>?' + qs.toString();
+          <?php else: ?>
+          window.location.href = '<?= app_url('patients') ?>/' + encodeURIComponent(patientId) + '?tab=treatments';
+          <?php endif; ?>
+          return;
+        }
+
         if (id) {
-          target += 'id=' + encodeURIComponent(id);
+          window.location.href = '<?= app_url('queue') ?>?id=' + encodeURIComponent(id);
         }
-        window.location.href = target;
       }
     });
     cal.render();
     window.rootsCalendar = cal;
     document.getElementById('doctorFilter').onchange = () => cal.refetchEvents();
-    document.getElementById('statusFilter').onchange = () => cal.refetchEvents();
   }
 });
 </script>

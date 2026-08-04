@@ -9,6 +9,7 @@ use App\Core\Database;
 use App\Core\DataTable;
 use App\Core\Request;
 use App\Core\Session;
+use App\Services\AppointmentService;
 use App\Services\AuditService;
 
 class PatientController extends Controller
@@ -274,6 +275,7 @@ class PatientController extends Controller
             'patient' => null,
             'suggestedOpdNumber' => $this->nextPatientCode(),
             'referenceDoctors' => Database::fetchAll('SELECT id, name FROM reference_doctors WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name'),
+            'availableDoctors' => available_doctors_today(),
         ]);
     }
 
@@ -328,15 +330,45 @@ class PatientController extends Controller
         AuditService::log('patients', 'create', $id, null, ['patient_code' => $code, 'name' => $data['name']]);
 
         $action = $request->input('submit_action');
+        $assignDoctorId = (int) ($request->input('assign_doctor_id') ?: 0);
         $redirect = 'patients/' . $id;
+        $message = 'Patient created successfully.';
+
         if ($action === 'save_new') {
             $redirect = 'patients/create';
+        } elseif ($action === 'send_doctor' || ($action === 'save' && $assignDoctorId > 0 && Auth::hasRole('receptionist'))) {
+            if ($assignDoctorId <= 0) {
+                if ($request->isAjax()) {
+                    $this->jsonError('Please select a doctor to send the patient.');
+                }
+                Session::flash('error', 'Please select a doctor to send the patient.');
+                $this->redirect('patients/' . $id);
+            }
+            try {
+                $apptId = (new AppointmentService())->assignWalkIn(
+                    (int) $id,
+                    $assignDoctorId,
+                    $request->input('visit_reason') ?: 'Walk-in consultation'
+                );
+                $doc = Database::fetch('SELECT name FROM doctors WHERE id = ?', [$assignDoctorId]);
+                $message = 'Patient created and sent to ' . doctor_label($doc['name'] ?? 'doctor') . '.';
+                $redirect = 'queue?highlight=' . urlencode((string) $apptId);
+            } catch (\Throwable $e) {
+                if ($request->isAjax()) {
+                    $this->jsonError('Patient saved, but could not assign doctor: ' . $e->getMessage(), [
+                        'id' => $id,
+                        'redirect' => App::url('patients/' . $id),
+                    ]);
+                }
+                Session::flash('error', 'Patient saved, but could not assign doctor: ' . $e->getMessage());
+                $this->redirect('patients/' . $id);
+            }
         } elseif ($action === 'book') {
             $redirect = 'calendar?patient_id=' . $id;
         }
 
         if ($request->isAjax()) {
-            $this->jsonSuccess('Patient created successfully.', [
+            $this->jsonSuccess($message, [
                 'id' => $id,
                 'patient_code' => $code,
                 'name' => $data['name'],
@@ -346,7 +378,7 @@ class PatientController extends Controller
             ]);
         }
 
-        Session::flash('success', 'Patient created successfully.');
+        Session::flash('success', $message);
         $this->redirect($redirect);
     }
 
@@ -504,6 +536,16 @@ class PatientController extends Controller
                     $decoded = json_decode((string) $chart['tooth_notes'], true);
                     $toothNotes = is_array($decoded) ? $decoded : [];
                 }
+                $labWork = [];
+                if (!empty($chart['lab_work'])) {
+                    $decoded = json_decode((string) $chart['lab_work'], true);
+                    $labWork = is_array($decoded) ? $decoded : [];
+                }
+                $implantWork = [];
+                if (!empty($chart['implant_work'])) {
+                    $decoded = json_decode((string) $chart['implant_work'], true);
+                    $implantWork = is_array($decoded) ? $decoded : [];
+                }
                 $doctors = Database::fetchAll(
                     'SELECT id, name FROM doctors WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name ASC'
                 );
@@ -654,7 +696,7 @@ class PatientController extends Controller
 
     public function saveClinicalChart(Request $request, string $id): void
     {
-        $patient = Database::fetch('SELECT id FROM patients WHERE id = ? AND deleted_at IS NULL', [$id]);
+        $patient = Database::fetch('SELECT id, name, mobile FROM patients WHERE id = ? AND deleted_at IS NULL', [$id]);
         if (!$patient) {
             $this->jsonError('Patient not found.', null, 404);
         }
@@ -684,14 +726,66 @@ class PatientController extends Controller
             'next_appt_time' => $request->input('next_appt_time') ?: null,
             'next_appt_test' => $request->input('next_appt_test', ''),
             'next_appt_doctor_id' => $request->input('next_appt_doctor_id') ?: null,
+            'lab_work' => json_encode([
+                'product' => trim((string) $request->input('lab_product', '')),
+                'shade' => trim((string) $request->input('lab_shade', '')),
+                'brand' => trim((string) $request->input('lab_brand', '')),
+                'lab_name' => trim((string) $request->input('lab_name', '')),
+            ], JSON_UNESCAPED_UNICODE),
+            'implant_work' => json_encode([
+                'brand' => trim((string) $request->input('implant_brand', '')),
+                'hex_type' => trim((string) $request->input('implant_hex_type', '')),
+                'healing_cap' => trim((string) $request->input('implant_healing_cap', '')),
+                'loading' => trim((string) $request->input('implant_loading', '')),
+                'lab_product' => trim((string) $request->input('implant_lab_product', '')),
+                'next_date' => trim((string) $request->input('implant_next_date', '')),
+                'next_time' => trim((string) $request->input('implant_next_time', '')),
+                'work_to_be_done' => trim((string) $request->input('implant_work_done', '')),
+                'substructure' => trim((string) $request->input('implant_substructure', '')),
+                'superstructure' => trim((string) $request->input('implant_superstructure', '')),
+                'notation' => trim((string) $request->input('implant_notation', '')),
+            ], JSON_UNESCAPED_UNICODE),
             'updated_by' => Auth::id(),
             'updated_at' => date('Y-m-d H:i:s'),
         ];
 
         $existing = Database::fetch(
-            'SELECT id FROM patient_clinical_charts WHERE patient_id = ? LIMIT 1',
+            'SELECT id, next_appointment_id, implant_appointment_id FROM patient_clinical_charts WHERE patient_id = ? LIMIT 1',
             [(int) $id]
         );
+
+        $linkedAppointmentId = $existing ? (int) ($existing['next_appointment_id'] ?? 0) : 0;
+        $linkedImplantId = $existing ? (int) ($existing['implant_appointment_id'] ?? 0) : 0;
+        $appointmentId = null;
+        $implantAppointmentId = null;
+        $calendarMessage = '';
+
+        try {
+            $synced = (new AppointmentService())->syncFromClinicalChart(
+                (int) $id,
+                array_merge($payload, [
+                    'implant_work' => $payload['implant_work'],
+                    'allotted_doctor_id' => $payload['allotted_doctor_id'],
+                ]),
+                $linkedAppointmentId > 0 ? $linkedAppointmentId : null,
+                $linkedImplantId > 0 ? $linkedImplantId : null
+            );
+            $appointmentId = $synced['main'] ?? null;
+            $implantAppointmentId = $synced['implant'] ?? null;
+        } catch (\Throwable $e) {
+            if ($request->isAjax()) {
+                $this->jsonError($e->getMessage());
+            }
+            Session::flash('error', $e->getMessage());
+            $this->redirect('patients/' . $id . '?tab=clinical');
+        }
+
+        if ($this->hasNextAppointmentColumn()) {
+            $payload['next_appointment_id'] = $appointmentId;
+        }
+        if ($this->hasImplantAppointmentColumn()) {
+            $payload['implant_appointment_id'] = $implantAppointmentId;
+        }
 
         if ($existing) {
             Database::update('patient_clinical_charts', $payload, 'id = :_id', ['_id' => (int) $existing['id']]);
@@ -704,12 +798,48 @@ class PatientController extends Controller
             AuditService::log('patients', 'clinical_chart_create', (int) $id, null, $payload);
         }
 
-        if ($request->isAjax()) {
-            $this->jsonSuccess('Clinical chart saved successfully.');
+        $booked = array_filter([$appointmentId, $implantAppointmentId]);
+        if ($booked) {
+            $calendarMessage = ' Treatment appointment added to calendar.';
         }
 
-        Session::flash('success', 'Clinical chart saved successfully.');
+        $message = 'Clinical chart saved successfully.' . $calendarMessage;
+        $calendarDate = $payload['next_appt_date'] ?: null;
+        if (!$calendarDate && $implantAppointmentId) {
+            $imp = json_decode((string) $payload['implant_work'], true);
+            $calendarDate = is_array($imp) ? ($imp['next_date'] ?? null) : null;
+        }
+
+        if ($request->isAjax()) {
+            $this->jsonSuccess($message, [
+                'appointment_id' => $appointmentId ?: $implantAppointmentId,
+                'implant_appointment_id' => $implantAppointmentId,
+                'calendar_url' => $calendarDate
+                    ? App::url('calendar?date=' . urlencode((string) $calendarDate))
+                    : App::url('calendar'),
+            ]);
+        }
+
+        Session::flash('success', $message);
         $this->redirect('patients/' . $id . '?tab=clinical');
+    }
+
+    private function hasNextAppointmentColumn(): bool
+    {
+        static $has = null;
+        if ($has === null) {
+            $has = (bool) Database::fetch("SHOW COLUMNS FROM patient_clinical_charts LIKE 'next_appointment_id'");
+        }
+        return $has;
+    }
+
+    private function hasImplantAppointmentColumn(): bool
+    {
+        static $has = null;
+        if ($has === null) {
+            $has = (bool) Database::fetch("SHOW COLUMNS FROM patient_clinical_charts LIKE 'implant_appointment_id'");
+        }
+        return $has;
     }
 
     private function ensureClinicalChartsTable(): void
@@ -733,6 +863,7 @@ class PatientController extends Controller
               next_appt_time TIME NULL,
               next_appt_test TEXT NULL,
               next_appt_doctor_id INT UNSIGNED NULL,
+              next_appointment_id INT UNSIGNED NULL,
               created_by INT UNSIGNED NULL,
               updated_by INT UNSIGNED NULL,
               created_at DATETIME NULL,
@@ -740,6 +871,22 @@ class PatientController extends Controller
               UNIQUE KEY uq_pcc_patient (patient_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
         );
+
+        $col = Database::fetch("SHOW COLUMNS FROM patient_clinical_charts LIKE 'next_appointment_id'");
+        if (!$col) {
+            Database::query('ALTER TABLE patient_clinical_charts ADD COLUMN next_appointment_id INT UNSIGNED NULL AFTER next_appt_doctor_id');
+        }
+        foreach (['lab_work' => 'LONGTEXT NULL', 'implant_work' => 'LONGTEXT NULL'] as $colName => $def) {
+            $exists = Database::fetch("SHOW COLUMNS FROM patient_clinical_charts LIKE '{$colName}'");
+            if (!$exists) {
+                Database::query("ALTER TABLE patient_clinical_charts ADD COLUMN {$colName} {$def} AFTER next_appointment_id");
+            }
+        }
+        $impApptCol = Database::fetch("SHOW COLUMNS FROM patient_clinical_charts LIKE 'implant_appointment_id'");
+        if (!$impApptCol) {
+            Database::query('ALTER TABLE patient_clinical_charts ADD COLUMN implant_appointment_id INT UNSIGNED NULL AFTER next_appointment_id');
+        }
+
         $ready = true;
     }
 

@@ -1,6 +1,8 @@
 <?php
 /**
- * Sync role permissions + demo users only (no sample clinical data overwrite).
+ * Sync role permissions for new hospital flow.
+ * Front Desk: Add patient, queue, calendar, billing only.
+ * Doctor: clinical + treatments + calendar.
  * Usage: php database/sync_roles.php
  */
 require dirname(__DIR__) . '/vendor/autoload.php';
@@ -50,32 +52,30 @@ foreach (['super_admin', 'admin'] as $slug) {
 }
 
 $sets = [
+    // Front Desk: Patient → Send to doctor → Calendar → Billing after treatment
     'receptionist' => [
         'dashboard.view',
         'calendar.view', 'calendar.add', 'calendar.edit',
-        'appointments.view', 'appointments.add', 'appointments.edit', 'appointments.status_change', 'appointments.print',
+        'appointments.view', 'appointments.add', 'appointments.edit', 'appointments.status_change',
         'queue.view', 'queue.status_change',
         'patients.view', 'patients.add', 'patients.edit', 'patients.print',
-        'follow_ups.view', 'follow_ups.add', 'follow_ups.edit', 'follow_ups.status_change',
-        'visits.view', 'visits.add',
-        'prescriptions.view', 'prescriptions.print',
-        'doctors.view', 'reference_doctors.view', 'treatment_masters.view',
         'billing.view', 'billing.add', 'billing.edit', 'billing.print',
         'payments.view', 'payments.add', 'payments.print',
-        'outstanding.view', 'outstanding.export',
+        'outstanding.view',
     ],
+    // Doctor: Queue → Clinical chart → Book next appt → Treatment
     'doctor' => [
         'dashboard.view',
         'calendar.view', 'calendar.add', 'calendar.edit',
-        'appointments.view', 'appointments.add', 'appointments.edit', 'appointments.status_change', 'appointments.print',
+        'appointments.view', 'appointments.add', 'appointments.edit', 'appointments.status_change',
         'queue.view', 'queue.status_change',
-        'patients.view', 'patients.print',
+        'patients.view', 'patients.edit', 'patients.print',
         'visits.view', 'visits.add', 'visits.edit',
         'treatments.view', 'treatments.add', 'treatments.edit', 'treatments.status_change',
         'treatment_sessions.view', 'treatment_sessions.add', 'treatment_sessions.edit',
         'prescriptions.view', 'prescriptions.add', 'prescriptions.edit', 'prescriptions.print',
-        'follow_ups.view', 'follow_ups.add', 'follow_ups.edit', 'follow_ups.status_change',
-        'medicine_masters.view', 'treatment_masters.view',
+        'treatment_masters.view',
+        'medicine_masters.view',
         'doctors.view',
         'billing.view', 'billing.print',
         'payments.view',
@@ -111,36 +111,6 @@ foreach ($sets as $role => $perms) {
         );
     }
     echo strtoupper($role) . ' => ' . count($perms) . " permissions\n";
-}
-
-$demoUsers = [
-    ['accounts', 'Accounts Desk', 'accounts@rootsdental.local', 'Accounts@123', 'accounts'],
-    ['inventory', 'Inventory Staff', 'inventory@rootsdental.local', 'Inventory@123', 'inventory'],
-];
-foreach ($demoUsers as [$username, $name, $email, $password, $role]) {
-    $user = Database::fetch('SELECT id FROM users WHERE username = ?', [$username]);
-    if (!$user) {
-        $id = Database::insert('users', [
-            'name' => $name,
-            'username' => $username,
-            'email' => $email,
-            'password' => password_hash($password, PASSWORD_BCRYPT),
-            'is_active' => 1,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
-    } else {
-        $id = (int) $user['id'];
-        Database::update('users', [
-            'name' => $name,
-            'email' => $email,
-            'password' => password_hash($password, PASSWORD_BCRYPT),
-            'is_active' => 1,
-            'updated_at' => $now,
-        ], 'id = :_id', ['_id' => $id]);
-    }
-    Database::query('INSERT IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)', [$id, $roleIds[$role]]);
-    echo "User ready: {$username} / {$password}\n";
 }
 
 echo "Role permission sync complete.\n";

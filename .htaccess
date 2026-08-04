@@ -1,5 +1,11 @@
-# If document root is project root (not /public), redirect everything to public/
+# XAMPP: send project-root URLs to /public (correct front controller)
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteRule ^(.*)$ public/$1 [L]
+    RewriteBase /roots_project/
+
+    # Avoid loop
+    RewriteRule ^public(/|$) - [L]
+
+    # External redirect so browser URL becomes .../public/...
+    RewriteRule ^(.*)$ public/$1 [R=302,L]
 </IfModule>

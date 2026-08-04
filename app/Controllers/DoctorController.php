@@ -171,7 +171,7 @@ class DoctorController extends \App\Core\Controller
 
     private function payload(Request $request, array $data): array
     {
-        return [
+        $payload = [
             'user_id' => $request->input('user_id') ?: null,
             'name' => $data['name'],
             'mobile' => $request->input('mobile'),
@@ -183,5 +183,24 @@ class DoctorController extends \App\Core\Controller
             'slot_duration' => (int) ($request->input('slot_duration') ?: 30),
             'is_active' => $this->activeValue($request),
         ];
+
+        static $hasColor = null;
+        if ($hasColor === null) {
+            $hasColor = (bool) Database::fetch("SHOW COLUMNS FROM doctors LIKE 'calendar_color'");
+        }
+        if ($hasColor) {
+            $payload['calendar_color'] = $this->normalizeColor($request->input('calendar_color'));
+        }
+
+        return $payload;
+    }
+
+    private function normalizeColor(mixed $value): string
+    {
+        $color = strtoupper(trim((string) $value));
+        if (!preg_match('/^#[0-9A-F]{6}$/', $color)) {
+            return '#00AEEF';
+        }
+        return $color;
     }
 }

@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Core\Database;
 use App\Core\DataTable;
 use App\Core\Request;
+use App\Core\Session;
 
 class VisitController extends \App\Core\Controller
 {
@@ -60,14 +61,40 @@ class VisitController extends \App\Core\Controller
 
     public function start(Request $request, string $appointmentId): void
     {
+        $this->startVisitAndRedirect($request, $appointmentId);
+    }
+
+    public function open(Request $request, string $appointmentId): void
+    {
+        $this->startVisitAndRedirect($request, $appointmentId);
+    }
+
+    private function startVisitAndRedirect(Request $request, string $appointmentId): void
+    {
         $appointment = Database::fetch('SELECT * FROM appointments WHERE id = ? AND deleted_at IS NULL', [$appointmentId]);
         if (!$appointment) {
-            $this->jsonError('Appointment not found.', null, 404);
+            if ($request->isAjax()) {
+                $this->jsonError('Appointment not found.', null, 404);
+            }
+            Session::flash('error', 'Appointment not found.');
+            $this->redirect('dashboard');
+        }
+
+        $scopedDoctorId = current_doctor_id();
+        if ($scopedDoctorId && (int) $appointment['doctor_id'] !== $scopedDoctorId) {
+            if ($request->isAjax()) {
+                $this->jsonError('This patient is assigned to another doctor.', null, 403);
+            }
+            Session::flash('error', 'This patient is assigned to another doctor.');
+            $this->redirect('dashboard');
         }
 
         $visit = Database::fetch('SELECT id FROM patient_visits WHERE appointment_id = ? AND deleted_at IS NULL', [$appointmentId]);
         if ($visit) {
-            $this->redirect('visits/' . $visit['id']);
+            if ($request->isAjax()) {
+                $this->jsonSuccess('Opening visit.', ['id' => (int) $visit['id'], 'redirect' => app_url('visits/' . $visit['id'] . '/edit')]);
+            }
+            $this->redirect('visits/' . $visit['id'] . '/edit');
         }
 
         try {
@@ -96,14 +123,19 @@ class VisitController extends \App\Core\Controller
             Database::commit();
         } catch (\Throwable $e) {
             Database::rollBack();
-            $this->jsonError($e->getMessage());
+            if ($request->isAjax()) {
+                $this->jsonError($e->getMessage());
+            }
+            Session::flash('error', $e->getMessage());
+            $this->redirect('dashboard');
         }
 
         $this->audit('visits', 'create', $id, null, ['appointment_id' => $appointmentId]);
+        $editUrl = app_url('visits/' . $id . '/edit');
         if ($request->isAjax()) {
-            $this->jsonSuccess('Visit started successfully.', ['id' => $id, 'redirect' => app_url('visits/' . $id)]);
+            $this->jsonSuccess('Visit started successfully.', ['id' => $id, 'redirect' => $editUrl]);
         }
-        $this->redirect('visits/' . $id);
+        $this->redirect('visits/' . $id . '/edit');
     }
 
     public function show(Request $request, string $id): void

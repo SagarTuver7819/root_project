@@ -126,6 +126,125 @@ function current_doctor_id(): ?int
     return $doctorId;
 }
 
+/**
+ * Active doctors for today with waiting load (for Front Desk assign).
+ * Free = not on full-day leave and fewer active walk-ins / consultations.
+ *
+ * @return list<array{id:int,name:string,doctor_code:string,calendar_color:string,waiting_count:int,busy_count:int,is_on_leave:bool,is_free:bool}>
+ */
+function available_doctors_today(?string $date = null): array
+{
+    $date = $date ?: date('Y-m-d');
+    $day = (int) date('w', strtotime($date));
+
+    try {
+        $doctors = \App\Core\Database::fetchAll(
+            'SELECT d.id, d.name, d.doctor_code, d.slot_duration
+             FROM doctors d
+             WHERE d.deleted_at IS NULL AND d.is_active = 1
+             ORDER BY d.name ASC'
+        );
+    } catch (Throwable $e) {
+        return [];
+    }
+
+    $result = [];
+    foreach ($doctors as $doc) {
+        $doctorId = (int) $doc['id'];
+        $leave = \App\Core\Database::fetch(
+            "SELECT id FROM doctor_leaves
+             WHERE doctor_id = ? AND leave_date = ? AND leave_type = 'full_day'
+             LIMIT 1",
+            [$doctorId, $date]
+        );
+        $onLeave = (bool) $leave;
+
+        $schedule = \App\Core\Database::fetch(
+            'SELECT id, is_off FROM doctor_schedules WHERE doctor_id = ? AND day_of_week = ?',
+            [$doctorId, $day]
+        );
+        $dayOff = $schedule && (int) $schedule['is_off'] === 1;
+
+        $busy = \App\Core\Database::fetch(
+            "SELECT
+                SUM(CASE WHEN status IN ('waiting','checked_in') THEN 1 ELSE 0 END) AS waiting_count,
+                SUM(CASE WHEN status IN ('waiting','checked_in','with_doctor') THEN 1 ELSE 0 END) AS busy_count
+             FROM appointments
+             WHERE doctor_id = ? AND appointment_date = ? AND deleted_at IS NULL
+               AND IFNULL(entry_type, 'appointment') <> 'doctor_remark'
+               AND status NOT IN ('cancelled','no_show','completed')",
+            [$doctorId, $date]
+        );
+
+        $waitingCount = (int) ($busy['waiting_count'] ?? 0);
+        $busyCount = (int) ($busy['busy_count'] ?? 0);
+        $isFree = !$onLeave && !$dayOff && $busyCount <= 2;
+
+        $result[] = [
+            'id' => $doctorId,
+            'name' => (string) $doc['name'],
+            'doctor_code' => (string) ($doc['doctor_code'] ?? ''),
+            'calendar_color' => doctor_calendar_color($doctorId, $doc),
+            'slot_duration' => (int) ($doc['slot_duration'] ?? 30),
+            'waiting_count' => $waitingCount,
+            'busy_count' => $busyCount,
+            'is_on_leave' => $onLeave || $dayOff,
+            'is_free' => $isFree,
+        ];
+    }
+
+    usort($result, static function (array $a, array $b): int {
+        if ($a['is_on_leave'] !== $b['is_on_leave']) {
+            return $a['is_on_leave'] ? 1 : -1;
+        }
+        if ($a['is_free'] !== $b['is_free']) {
+            return $a['is_free'] ? -1 : 1;
+        }
+        return $a['busy_count'] <=> $b['busy_count'];
+    });
+
+    return $result;
+}
+
+function doctor_calendar_color(int $doctorId, ?array $row = null): string
+{
+    static $hasColumn = null;
+    static $cache = [];
+
+    if (isset($cache[$doctorId])) {
+        return $cache[$doctorId];
+    }
+
+    if ($hasColumn === null) {
+        try {
+            $hasColumn = (bool) \App\Core\Database::fetch("SHOW COLUMNS FROM doctors LIKE 'calendar_color'");
+        } catch (Throwable $e) {
+            $hasColumn = false;
+        }
+    }
+
+    $color = '#00AEEF';
+    if ($hasColumn) {
+        if ($row && isset($row['calendar_color'])) {
+            $color = (string) $row['calendar_color'];
+        } else {
+            try {
+                $doc = \App\Core\Database::fetch('SELECT calendar_color FROM doctors WHERE id = ?', [$doctorId]);
+                $color = (string) ($doc['calendar_color'] ?? '#00AEEF');
+            } catch (Throwable $e) {
+                $color = '#00AEEF';
+            }
+        }
+    }
+
+    if (!preg_match('/^#[0-9A-Fa-f]{6}$/', $color)) {
+        $color = '#00AEEF';
+    }
+
+    $cache[$doctorId] = $color;
+    return $color;
+}
+
 function branding(?string $key = null, mixed $default = null): mixed
 {
     static $settings = null;

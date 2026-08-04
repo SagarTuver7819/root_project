@@ -46,12 +46,22 @@ class DashboardController extends Controller
         $doctorQueue = [];
         if ($doctorId) {
             $doctorQueue = Database::fetchAll(
-                "SELECT a.*, p.name AS patient_name, p.mobile, p.patient_code
+                "SELECT a.*, p.name AS patient_name, p.mobile, p.patient_code,
+                        v.id AS visit_id
                  FROM appointments a
                  INNER JOIN patients p ON p.id = a.patient_id
+                 LEFT JOIN patient_visits v ON v.appointment_id = a.id AND v.deleted_at IS NULL
                  WHERE a.doctor_id = ? AND a.appointment_date = ? AND a.deleted_at IS NULL
+                 AND IFNULL(a.entry_type, 'appointment') <> 'doctor_remark'
                  AND a.status IN ('waiting','checked_in','with_doctor','scheduled','confirmed')
-                 ORDER BY a.start_time ASC",
+                 ORDER BY
+                    CASE a.status
+                        WHEN 'waiting' THEN 1
+                        WHEN 'checked_in' THEN 2
+                        WHEN 'with_doctor' THEN 3
+                        ELSE 4
+                    END,
+                    a.start_time ASC",
                 [$doctorId, $today]
             );
         }
@@ -76,6 +86,9 @@ class DashboardController extends Controller
             'queue' => $queue,
             'doctorQueue' => $doctorQueue,
             'today' => $today,
+            'doctors' => Database::fetchAll(
+                'SELECT id, name FROM doctors WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name ASC'
+            ),
             'recentPayments' => Database::fetchAll(
                 'SELECT pay.payment_date, pay.amount, pay.payment_mode, p.name AS patient_name
                  FROM payments pay

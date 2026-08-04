@@ -23,11 +23,13 @@
             </button>
             <div class="nav-submenu <?= menu_open(['calendar','appointments','queue','follow-ups']) ?>" id="menuFrontDesk">
                 <?php if (can('appointments.view')): ?>
-                <a class="nav-link <?= active_menu('calendar') ?>" href="<?= app_url('calendar') ?>"><i class="bi bi-calendar3"></i><span>Calendar</span></a>
-                <a class="nav-link <?= active_menu('appointments') ?>" href="<?= app_url('appointments') ?>"><i class="bi bi-calendar-check"></i><span>Appointments</span></a>
+                <a class="nav-link <?= active_menu('calendar') ?>" href="<?= app_url('calendar') ?>"><i class="bi bi-calendar3"></i><span>Week Calendar</span></a>
                 <a class="nav-link <?= active_menu('queue') ?>" href="<?= app_url('queue') ?>"><i class="bi bi-people"></i><span>Patient Queue</span></a>
+                <?php if (can('appointments.add') && (\App\Core\Auth::hasRole('super_admin') || \App\Core\Auth::hasRole('admin'))): ?>
+                <a class="nav-link <?= active_menu('appointments') ?>" href="<?= app_url('appointments') ?>"><i class="bi bi-calendar-check"></i><span>Appointments</span></a>
                 <?php endif; ?>
-                <?php if (can('follow_ups.view')): ?>
+                <?php endif; ?>
+                <?php if (can('follow_ups.view') && (\App\Core\Auth::hasRole('super_admin') || \App\Core\Auth::hasRole('admin') || \App\Core\Auth::hasRole('doctor'))): ?>
                 <a class="nav-link <?= active_menu('follow-ups') ?>" href="<?= app_url('follow-ups') ?>"><i class="bi bi-arrow-repeat"></i><span>Follow-Ups</span></a>
                 <?php endif; ?>
             </div>

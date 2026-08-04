@@ -60,15 +60,36 @@ Logo-based defaults:
 
 Configure under **Settings → Hospital Profile / Branding**.
 
-## Deploy (GitHub + subdomain)
+## One-click live DB update (browser URL)
 
-1. Push code to GitHub (`main` branch).
-2. On hosting: clone repo, point subdomain document root to `public/`.
-3. Copy `.env.example` → `.env` and set live `DB_*` + optional `APP_URL`.
-4. Run `composer dump-autoload -o`, import `database/schema.sql`, then `php database/seed.php`.
-5. Run `php database/migrate_booking.php` and `php database/sync_roles.php` if needed.
+1. Live `.env` ma set karo:
 
-`config/app.php` and `config/database.php` are shared — do not change them per server. Use `.env` only.
+```env
+APP_URL=https://your-live-domain.com
+MIGRATE_KEY=RootsLiveUpdate2026
+DB_HOST=...
+DB_DATABASE=...
+DB_USERNAME=...
+DB_PASSWORD=...
+```
+
+2. Code upload/pull pachi browser ma aa URL open karo:
+
+```text
+https://your-live-domain.com/migrate_live.php?key=RootsLiveUpdate2026
+```
+
+Local test:
+
+```text
+http://localhost/roots_project/public/migrate_live.php?key=RootsLiveUpdate2026
+```
+
+3. Page par **SUCCESS** dekhay pachi:
+   - `public/migrate_live.php` delete kari do, **athva**
+   - `.env` mathi `MIGRATE_KEY` remove/change kari do
+
+CLI option (SSH): `php database/migrate_live.php`
 
 
 ## Notes for developers

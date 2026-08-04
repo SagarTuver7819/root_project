@@ -2431,6 +2431,24 @@ a.kanban-patient-name:hover {
 }
 
 .fd-calendar-card .calendar-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .45rem .65rem;
+}
+.fd-week-calendar {
+    min-height: 620px;
+}
+.fd-dash .btn-lg {
+    font-weight: 700;
+}
+@media (max-width: 767.98px) {
+    .fd-week-calendar {
+        min-height: 480px;
+    }
+    .fd-dash .btn-lg {
+        width: 100%;
+    }
+}
     gap: .45rem;
 }
 
