@@ -109,6 +109,11 @@
         $(document).on('submit', 'form.ajax-form', function (e) {
             e.preventDefault();
             const $form = $(this);
+            const submitter = (e.originalEvent && e.originalEvent.submitter) || document.activeElement;
+            const formData = new FormData(this);
+            if (submitter && submitter.name && this.contains(submitter)) {
+                formData.set(submitter.name, submitter.value);
+            }
             const $btn = $form.find('[type=submit]').prop('disabled', true);
             const original = $btn.html();
             $btn.data('original', original).html('<span class="spinner-border spinner-border-sm me-1"></span> Saving...');
@@ -116,12 +121,16 @@
             $.ajax({
                 url: $form.attr('action'),
                 method: ($form.attr('method') || 'POST').toUpperCase(),
-                data: new FormData(this),
+                data: formData,
                 processData: false,
                 contentType: false,
                 dataType: 'json',
                 headers: csrfHeaders(),
                 success: function (res) {
+                    if (res && res.success === false) {
+                        toastr.error((res && res.message) || 'Unable to process your request.');
+                        return;
+                    }
                     toastr.success((res && res.message) || 'Saved successfully.');
 
                     // Prefer explicit form redirect; otherwise use API redirect.
@@ -241,6 +250,64 @@
                 }
             });
         }
+
+        $(document).on('click', '.clinical-doc-upload', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $btn = $(this);
+            const type = $btn.data('type');
+            const $form = $btn.closest('.clinical-chart-form');
+            const uploadUrl = $form.data('upload-url') || $btn.data('upload-url');
+            const fileInput = ($form.length ? $form : $(document))
+                .find('.clinical-doc-file[data-type="' + type + '"]')
+                .get(0);
+
+            if (!uploadUrl) {
+                toastr.error('Upload URL missing. Please refresh the page.');
+                return;
+            }
+            if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+                toastr.warning('Please choose a file first.');
+                return;
+            }
+
+            const fd = new FormData();
+            fd.append('_token', window.CSRF_TOKEN || $('meta[name="csrf-token"]').attr('content') || '');
+            fd.append('document_type', type);
+            fd.append('document', fileInput.files[0]);
+            fd.append('description', fileInput.files[0].name);
+
+            $btn.prop('disabled', true);
+            $.ajax({
+                url: uploadUrl,
+                method: 'POST',
+                data: fd,
+                processData: false,
+                contentType: false,
+                dataType: 'json',
+                headers: csrfHeaders(),
+                success: function (res) {
+                    if (res && res.success === false) {
+                        toastr.error((res && res.message) || 'Upload failed.');
+                        return;
+                    }
+                    toastr.success((res && res.message) || 'Uploaded.');
+                    const active = document.querySelector('#patientTabs .nav-link.active');
+                    if (active) {
+                        active.click();
+                    } else {
+                        window.location.reload();
+                    }
+                },
+                error: function (xhr) {
+                    const res = xhr.responseJSON || {};
+                    toastr.error(res.message || 'Upload failed.');
+                },
+                complete: function () {
+                    $btn.prop('disabled', false);
+                }
+            });
+        });
 
         initSelect2(document);
 

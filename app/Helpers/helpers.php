@@ -62,6 +62,49 @@ function asset(string $path): string
     return App::asset($path);
 }
 
+/**
+ * Absolute URL for a file under public/assets/uploads.
+ * Accepts either "patients/1/a.jpg" or "uploads/patients/1/a.jpg".
+ */
+function upload_url(string $path): string
+{
+    $path = str_replace('\\', '/', trim($path));
+    $path = ltrim($path, '/');
+    if (str_starts_with($path, 'assets/uploads/')) {
+        $path = substr($path, strlen('assets/uploads/'));
+    } elseif (str_starts_with($path, 'uploads/')) {
+        $path = substr($path, strlen('uploads/'));
+    }
+
+    $configured = trim((string) (App::config('app')['upload_url'] ?? ''));
+    if ($configured !== '') {
+        if (preg_match('#^https?://#i', $configured)) {
+            return rtrim($configured, '/') . '/' . $path;
+        }
+        // Relative web path (e.g. /public/assets/uploads) — join with host from APP_URL
+        $appUrl = rtrim((string) (App::config('app')['url'] ?? ''), '/');
+        $parts = parse_url($appUrl) ?: [];
+        $origin = ($parts['scheme'] ?? 'http') . '://' . ($parts['host'] ?? 'localhost');
+        if (!empty($parts['port'])) {
+            $origin .= ':' . $parts['port'];
+        }
+        return $origin . '/' . trim($configured, '/') . '/' . $path;
+    }
+
+    return asset('uploads/' . $path);
+}
+
+/** Absolute filesystem path for uploads root. */
+function upload_path(string $path = ''): string
+{
+    $root = (string) (App::config('app')['upload_path'] ?? App::basePath('public/assets/uploads'));
+    $root = rtrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $root), DIRECTORY_SEPARATOR);
+    if ($path === '') {
+        return $root;
+    }
+    return $root . DIRECTORY_SEPARATOR . ltrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path), DIRECTORY_SEPARATOR);
+}
+
 function csrf_token(): string
 {
     return Session::csrfToken();

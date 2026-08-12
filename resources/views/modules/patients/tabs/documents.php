@@ -44,7 +44,7 @@
                 <td><?= e(ucwords(str_replace('_', ' ', $row['document_type'] ?? ''))) ?></td>
                 <td><?= e($row['description'] ?? '-') ?></td>
                 <td><?= e(format_date($row['created_at'] ?? null, 'd M Y H:i')) ?></td>
-                <td><a href="<?= e(asset('uploads/' . ltrim($row['file_path'] ?? '', '/'))) ?>" target="_blank">Open</a></td>
+                <td><a href="<?= e(upload_url((string) ($row['file_path'] ?? ''))) ?>" target="_blank" rel="noopener">Open</a></td>
                 <td class="text-end">
                     <?php if (can('patients.edit')): ?>
                         <button type="button" class="btn btn-sm btn-light text-danger btn-delete"

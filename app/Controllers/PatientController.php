@@ -275,7 +275,6 @@ class PatientController extends Controller
             'patient' => null,
             'suggestedOpdNumber' => $this->nextPatientCode(),
             'referenceDoctors' => Database::fetchAll('SELECT id, name FROM reference_doctors WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name'),
-            'availableDoctors' => available_doctors_today(),
         ]);
     }
 
@@ -330,39 +329,11 @@ class PatientController extends Controller
         AuditService::log('patients', 'create', $id, null, ['patient_code' => $code, 'name' => $data['name']]);
 
         $action = $request->input('submit_action');
-        $assignDoctorId = (int) ($request->input('assign_doctor_id') ?: 0);
-        $redirect = 'patients/' . $id;
+        $redirect = 'patients/' . $id . '?tab=clinical';
         $message = 'Patient created successfully.';
 
         if ($action === 'save_new') {
             $redirect = 'patients/create';
-        } elseif ($action === 'send_doctor' || ($action === 'save' && $assignDoctorId > 0 && Auth::hasRole('receptionist'))) {
-            if ($assignDoctorId <= 0) {
-                if ($request->isAjax()) {
-                    $this->jsonError('Please select a doctor to send the patient.');
-                }
-                Session::flash('error', 'Please select a doctor to send the patient.');
-                $this->redirect('patients/' . $id);
-            }
-            try {
-                $apptId = (new AppointmentService())->assignWalkIn(
-                    (int) $id,
-                    $assignDoctorId,
-                    $request->input('visit_reason') ?: 'Walk-in consultation'
-                );
-                $doc = Database::fetch('SELECT name FROM doctors WHERE id = ?', [$assignDoctorId]);
-                $message = 'Patient created and sent to ' . doctor_label($doc['name'] ?? 'doctor') . '.';
-                $redirect = 'queue?highlight=' . urlencode((string) $apptId);
-            } catch (\Throwable $e) {
-                if ($request->isAjax()) {
-                    $this->jsonError('Patient saved, but could not assign doctor: ' . $e->getMessage(), [
-                        'id' => $id,
-                        'redirect' => App::url('patients/' . $id),
-                    ]);
-                }
-                Session::flash('error', 'Patient saved, but could not assign doctor: ' . $e->getMessage());
-                $this->redirect('patients/' . $id);
-            }
         } elseif ($action === 'book') {
             $redirect = 'calendar?patient_id=' . $id;
         }
@@ -466,9 +437,9 @@ class PatientController extends Controller
 
         Session::flash('success', 'Patient updated successfully.');
         if ($request->isAjax()) {
-            $this->jsonSuccess('Patient updated successfully.', ['redirect' => App::url('patients/' . $id)]);
+            $this->jsonSuccess('Patient updated successfully.', ['redirect' => App::url('patients/' . $id . '?tab=clinical')]);
         }
-        $this->redirect('patients/' . $id);
+        $this->redirect('patients/' . $id . '?tab=clinical');
     }
 
     public function destroy(Request $request, string $id): void
@@ -685,7 +656,7 @@ class PatientController extends Controller
         }
 
         Database::query('DELETE FROM patient_documents WHERE id = ?', [$docId]);
-        $full = dirname(__DIR__, 2) . '/public/assets/uploads/' . ltrim($doc['file_path'], '/');
+        $full = upload_path((string) ($doc['file_path'] ?? ''));
         if (is_file($full)) {
             @unlink($full);
         }
@@ -714,10 +685,44 @@ class PatientController extends Controller
             static fn ($v) => is_string($v) ? trim($v) !== '' : $v !== null && $v !== ''
         );
 
+        $allowedConditions = ['diabetes', 'cholesterol', 'blood pressure'];
+        $conditions = $request->input('medical_conditions', []);
+        if (!is_array($conditions)) {
+            $conditions = [];
+        }
+        $conditions = array_values(array_intersect(
+            array_map(static fn ($v) => strtolower(trim((string) $v)) === 'cholestrol' ? 'cholesterol' : trim((string) $v), $conditions),
+            $allowedConditions
+        ));
+        $medicalOther = $request->input('medical_other_check')
+            ? trim((string) $request->input('medical_other', ''))
+            : '';
+        $dailyMedicine = trim((string) $request->input('daily_medicine', ''));
+
+        $allowedHabits = ['masala', 'betel nut'];
+        $habits = $request->input('habits', []);
+        if (!is_array($habits)) {
+            $habits = [];
+        }
+        $habits = array_values(array_intersect(
+            array_map(static fn ($v) => trim((string) $v), $habits),
+            $allowedHabits
+        ));
+        $habitOther = $request->input('habit_other_check')
+            ? trim((string) $request->input('habit_other', ''))
+            : '';
+
         $payload = [
             'chief_complaint' => $request->input('chief_complaint', ''),
-            'drug_list' => $request->input('drug_list', ''),
-            'habit' => $request->input('habit', ''),
+            'drug_list' => json_encode([
+                'conditions' => $conditions,
+                'other' => $medicalOther,
+                'daily_medicine' => $dailyMedicine,
+            ], JSON_UNESCAPED_UNICODE),
+            'habit' => json_encode([
+                'items' => $habits,
+                'other' => $habitOther,
+            ], JSON_UNESCAPED_UNICODE),
             'test_advised' => $request->input('test_advised', ''),
             'tooth_notes' => json_encode($toothNotes, JSON_UNESCAPED_UNICODE),
             'allotted_doctor_id' => $request->input('allotted_doctor_id') ?: null,
@@ -759,6 +764,34 @@ class PatientController extends Controller
         $appointmentId = null;
         $implantAppointmentId = null;
         $calendarMessage = '';
+        $calendarWarning = '';
+
+        // Persist clinical chart first so calendar/slot errors never wipe patient notes.
+        try {
+            if ($existing) {
+                Database::update('patient_clinical_charts', $payload, 'id = :_id', ['_id' => (int) $existing['id']]);
+                AuditService::log('patients', 'clinical_chart_update', (int) $id, null, [
+                    'chief_complaint' => $payload['chief_complaint'],
+                    'drug_list' => $payload['drug_list'],
+                    'habit' => $payload['habit'],
+                ]);
+            } else {
+                $payload['patient_id'] = (int) $id;
+                $payload['created_by'] = Auth::id();
+                $payload['created_at'] = date('Y-m-d H:i:s');
+                $newId = Database::insert('patient_clinical_charts', $payload);
+                $existing = ['id' => $newId];
+                AuditService::log('patients', 'clinical_chart_create', (int) $id, null, [
+                    'chief_complaint' => $payload['chief_complaint'],
+                ]);
+            }
+        } catch (\Throwable $e) {
+            if ($request->isAjax()) {
+                $this->jsonError('Clinical chart could not be saved: ' . $e->getMessage());
+            }
+            Session::flash('error', 'Clinical chart could not be saved: ' . $e->getMessage());
+            $this->redirect('patients/' . $id . '?tab=clinical');
+        }
 
         try {
             $synced = (new AppointmentService())->syncFromClinicalChart(
@@ -772,55 +805,46 @@ class PatientController extends Controller
             );
             $appointmentId = $synced['main'] ?? null;
             $implantAppointmentId = $synced['implant'] ?? null;
-        } catch (\Throwable $e) {
-            if ($request->isAjax()) {
-                $this->jsonError($e->getMessage());
+
+            $linkUpdate = [];
+            if ($this->hasNextAppointmentColumn()) {
+                $linkUpdate['next_appointment_id'] = $appointmentId;
             }
-            Session::flash('error', $e->getMessage());
-            $this->redirect('patients/' . $id . '?tab=clinical');
+            if ($this->hasImplantAppointmentColumn()) {
+                $linkUpdate['implant_appointment_id'] = $implantAppointmentId;
+            }
+            if ($linkUpdate && !empty($existing['id'])) {
+                $linkUpdate['updated_at'] = date('Y-m-d H:i:s');
+                Database::update('patient_clinical_charts', $linkUpdate, 'id = :_id', ['_id' => (int) $existing['id']]);
+            }
+
+            if (array_filter([$appointmentId, $implantAppointmentId])) {
+                $calendarMessage = ' Treatment appointment added to calendar.';
+            }
+        } catch (\Throwable $e) {
+            $calendarWarning = ' Chart saved, but calendar booking failed: ' . $e->getMessage();
         }
 
-        if ($this->hasNextAppointmentColumn()) {
-            $payload['next_appointment_id'] = $appointmentId;
-        }
-        if ($this->hasImplantAppointmentColumn()) {
-            $payload['implant_appointment_id'] = $implantAppointmentId;
-        }
-
-        if ($existing) {
-            Database::update('patient_clinical_charts', $payload, 'id = :_id', ['_id' => (int) $existing['id']]);
-            AuditService::log('patients', 'clinical_chart_update', (int) $id, null, $payload);
-        } else {
-            $payload['patient_id'] = (int) $id;
-            $payload['created_by'] = Auth::id();
-            $payload['created_at'] = date('Y-m-d H:i:s');
-            Database::insert('patient_clinical_charts', $payload);
-            AuditService::log('patients', 'clinical_chart_create', (int) $id, null, $payload);
-        }
-
-        $booked = array_filter([$appointmentId, $implantAppointmentId]);
-        if ($booked) {
-            $calendarMessage = ' Treatment appointment added to calendar.';
-        }
-
-        $message = 'Clinical chart saved successfully.' . $calendarMessage;
+        $message = 'Clinical chart saved successfully.' . $calendarMessage . $calendarWarning;
         $calendarDate = $payload['next_appt_date'] ?: null;
         if (!$calendarDate && $implantAppointmentId) {
             $imp = json_decode((string) $payload['implant_work'], true);
             $calendarDate = is_array($imp) ? ($imp['next_date'] ?? null) : null;
         }
 
+        $redirect = App::url('patients/' . $id . '?tab=clinical');
         if ($request->isAjax()) {
             $this->jsonSuccess($message, [
                 'appointment_id' => $appointmentId ?: $implantAppointmentId,
                 'implant_appointment_id' => $implantAppointmentId,
+                'redirect' => $redirect,
                 'calendar_url' => $calendarDate
                     ? App::url('calendar?date=' . urlencode((string) $calendarDate))
                     : App::url('calendar'),
             ]);
         }
 
-        Session::flash('success', $message);
+        Session::flash($calendarWarning !== '' ? 'warning' : 'success', $message);
         $this->redirect('patients/' . $id . '?tab=clinical');
     }
 
@@ -893,9 +917,16 @@ class PatientController extends Controller
     private function storePatientDocument(array $file, int $patientId): ?string
     {
         $allowed = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+        $tmp = (string) ($file['tmp_name'] ?? '');
+        if ($tmp === '' || !is_uploaded_file($tmp)) {
+            return null;
+        }
+
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $mime = finfo_file($finfo, $file['tmp_name']);
-        finfo_close($finfo);
+        $mime = $finfo ? (string) finfo_file($finfo, $tmp) : '';
+        if ($finfo) {
+            finfo_close($finfo);
+        }
 
         if (!in_array($mime, $allowed, true)) {
             return null;
@@ -908,15 +939,17 @@ class PatientController extends Controller
             default => 'jpg',
         };
 
-        $dir = dirname(__DIR__, 2) . '/public/assets/uploads/patients/' . $patientId;
-        if (!is_dir($dir)) {
-            mkdir($dir, 0777, true);
+        $dir = upload_path('patients/' . $patientId);
+        if (!is_dir($dir) && !mkdir($dir, 0777, true) && !is_dir($dir)) {
+            return null;
         }
 
         $name = 'doc_' . date('YmdHis') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-        if (!move_uploaded_file($file['tmp_name'], $dir . '/' . $name)) {
+        $dest = $dir . DIRECTORY_SEPARATOR . $name;
+        if (!move_uploaded_file($tmp, $dest)) {
             return null;
         }
+        @chmod($dest, 0644);
 
         return 'patients/' . $patientId . '/' . $name;
     }

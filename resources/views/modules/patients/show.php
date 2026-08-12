@@ -54,12 +54,30 @@ document.addEventListener('DOMContentLoaded', function () {
   const base = '<?= app_url('patients/' . ($patient['id'] ?? '') . '/tab/') ?>';
   const defaultTab = <?= json_encode($defaultTab) ?>;
 
+  function runScripts(container) {
+    container.querySelectorAll('script').forEach(function (oldScript) {
+      const script = document.createElement('script');
+      if (oldScript.src) {
+        script.src = oldScript.src;
+      } else {
+        script.textContent = oldScript.textContent;
+      }
+      Array.from(oldScript.attributes).forEach(function (attr) {
+        if (attr.name !== 'src') {
+          script.setAttribute(attr.name, attr.value);
+        }
+      });
+      oldScript.parentNode.replaceChild(script, oldScript);
+    });
+  }
+
   function load(tab) {
     box.innerHTML = '<div class="text-muted py-3">Loading...</div>';
     fetch(base + tab, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
       .then(function (r) { return r.json(); })
       .then(function (r) {
         box.innerHTML = (r.data && r.data.html) || r.html || '<div class="text-muted py-3">No records found.</div>';
+        runScripts(box);
         if (window.RootsApp && typeof window.RootsApp.initSelect2 === 'function') {
           window.RootsApp.initSelect2(box);
         }
