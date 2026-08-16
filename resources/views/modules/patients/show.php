@@ -1,9 +1,11 @@
 <?php
-$actions = '<a href="' . app_url('patients/' . ($patient['id'] ?? '') . '/edit') . '" class="btn btn-primary">Edit Patient</a><a href="' . app_url('calendar?patient_id=' . ($patient['id'] ?? '')) . '" class="btn btn-light">Book</a>';
+$formAction = app_url('patients/' . ($patient['id'] ?? '') . '/edit');
+$actions = '<a href="' . $formAction . '" class="btn btn-primary">Edit Patient</a><a href="' . app_url('calendar?patient_id=' . ($patient['id'] ?? '')) . '" class="btn btn-light">Book</a>';
 require __DIR__ . '/../../components/page-header.php';
 
 $tabs = [
     'clinical' => 'Clinical Chart',
+    'plan' => 'Treatment Plan',
     'history' => 'History',
     'appointments' => 'Appointments',
     'visits' => 'Visits',
@@ -12,9 +14,14 @@ $tabs = [
     'payments' => 'Payments',
     'documents' => 'Documents',
 ];
+$hasTreatmentPlan = !empty($hasTreatmentPlan);
+$openTabs = ['clinical', 'plan'];
 $defaultTab = $_GET['tab'] ?? 'clinical';
 if (!isset($tabs[$defaultTab])) {
     $defaultTab = 'clinical';
+}
+if (!$hasTreatmentPlan && !in_array($defaultTab, $openTabs, true)) {
+    $defaultTab = 'plan';
 }
 ?>
 <div class="card content-card mb-4">
@@ -37,13 +44,26 @@ if (!isset($tabs[$defaultTab])) {
     <div class="card-body">
         <ul class="nav nav-tabs patient-profile-tabs" id="patientTabs" role="tablist">
             <?php foreach ($tabs as $key => $label): ?>
+            <?php $isLocked = !$hasTreatmentPlan && !in_array($key, $openTabs, true); ?>
             <li class="nav-item" role="presentation">
-                <button class="nav-link <?= $key === $defaultTab ? 'active' : '' ?>" type="button" data-tab="<?= e($key) ?>" role="tab">
+                <button
+                    class="nav-link <?= $key === $defaultTab ? 'active' : '' ?><?= $isLocked ? ' is-locked' : '' ?>"
+                    type="button"
+                    data-tab="<?= e($key) ?>"
+                    data-locked="<?= $isLocked ? '1' : '0' ?>"
+                    role="tab"
+                >
                     <?= e($label) ?>
+                    <?php if ($isLocked): ?><i class="bi bi-lock-fill ms-1 small"></i><?php endif; ?>
                 </button>
             </li>
             <?php endforeach; ?>
         </ul>
+        <?php if (!$hasTreatmentPlan): ?>
+            <div class="alert alert-warning py-2 px-3 mt-3 mb-0">
+                Suggested treatment plan (line 1) save thay pachi j biji tabs open thase.
+            </div>
+        <?php endif; ?>
         <div id="tabContent" class="pt-3">Loading...</div>
     </div>
 </div>
@@ -89,6 +109,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
   document.querySelectorAll('#patientTabs .nav-link').forEach(function (btn) {
     btn.addEventListener('click', function () {
+      if (this.dataset.locked === '1') {
+        toastr.warning('Pehla suggested treatment plan save karo. Line 1 compulsory che.');
+        return;
+      }
       document.querySelectorAll('#patientTabs .nav-link').forEach(function (x) { x.classList.remove('active'); });
       this.classList.add('active');
       load(this.dataset.tab);

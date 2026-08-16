@@ -9,7 +9,6 @@ use App\Core\Database;
 use App\Core\DataTable;
 use App\Core\Request;
 use App\Core\Session;
-use App\Services\AppointmentService;
 use App\Services\AuditService;
 
 class PatientController extends Controller
@@ -361,10 +360,17 @@ class PatientController extends Controller
             $this->redirect('patients');
         }
 
+        $this->ensureSuggestedTreatmentsTable();
+        $hasPlan = (bool) Database::fetch(
+            'SELECT id FROM patient_suggested_treatments WHERE patient_id = ? LIMIT 1',
+            [(int) $id]
+        );
+
         $this->view('modules/patients/show', [
             'title' => $patient['name'],
             'pageTitle' => 'Patient Profile',
             'patient' => $patient,
+            'hasTreatmentPlan' => $hasPlan,
         ]);
     }
 
@@ -484,9 +490,20 @@ class PatientController extends Controller
 
     public function tab(Request $request, string $id, string $tab): void
     {
-        $allowed = ['clinical', 'appointments', 'visits', 'treatments', 'prescriptions', 'payments', 'documents', 'history'];
+        $allowed = ['clinical', 'plan', 'appointments', 'visits', 'treatments', 'prescriptions', 'payments', 'documents', 'history'];
         if (!in_array($tab, $allowed, true)) {
             $this->jsonError('Invalid tab.', null, 404);
+        }
+
+        if (!in_array($tab, ['clinical', 'plan'], true)) {
+            $this->ensureSuggestedTreatmentsTable();
+            $hasPlan = Database::fetch(
+                'SELECT id FROM patient_suggested_treatments WHERE patient_id = ? LIMIT 1',
+                [(int) $id]
+            );
+            if (!$hasPlan) {
+                $this->jsonError('Please save suggested treatment plan first. Line 1 is compulsory.');
+            }
         }
 
         $page = max(1, (int) $request->input('page', 1));
@@ -502,24 +519,6 @@ class PatientController extends Controller
                     'SELECT * FROM patient_clinical_charts WHERE patient_id = ? LIMIT 1',
                     [(int) $id]
                 ) ?: [];
-                $toothNotes = [];
-                if (!empty($chart['tooth_notes'])) {
-                    $decoded = json_decode((string) $chart['tooth_notes'], true);
-                    $toothNotes = is_array($decoded) ? $decoded : [];
-                }
-                $labWork = [];
-                if (!empty($chart['lab_work'])) {
-                    $decoded = json_decode((string) $chart['lab_work'], true);
-                    $labWork = is_array($decoded) ? $decoded : [];
-                }
-                $implantWork = [];
-                if (!empty($chart['implant_work'])) {
-                    $decoded = json_decode((string) $chart['implant_work'], true);
-                    $implantWork = is_array($decoded) ? $decoded : [];
-                }
-                $doctors = Database::fetchAll(
-                    'SELECT id, name FROM doctors WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name ASC'
-                );
                 $xrays = Database::fetchAll(
                     "SELECT * FROM patient_documents WHERE patient_id = ? AND document_type = 'xray' ORDER BY id DESC LIMIT 20",
                     [(int) $id]
@@ -531,6 +530,21 @@ class PatientController extends Controller
                 $id = (int) $id;
                 ob_start();
                 require dirname(__DIR__, 2) . '/resources/views/modules/patients/tabs/clinical.php';
+                $html = ob_get_clean();
+                break;
+            case 'plan':
+                $this->ensureSuggestedTreatmentsTable();
+                $patient = Database::fetch('SELECT id, patient_code, name, mobile FROM patients WHERE id = ? AND deleted_at IS NULL', [(int) $id]) ?: [];
+                $doctors = Database::fetchAll(
+                    'SELECT id, name FROM doctors WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name ASC'
+                );
+                $savedItems = Database::fetchAll(
+                    'SELECT id, description, doctor_id, sort_order FROM patient_suggested_treatments WHERE patient_id = ? ORDER BY sort_order ASC, id ASC',
+                    [(int) $id]
+                );
+                $id = (int) $id;
+                ob_start();
+                require dirname(__DIR__, 2) . '/resources/views/modules/patients/tabs/plan.php';
                 $html = ob_get_clean();
                 break;
             case 'appointments':
@@ -674,17 +688,6 @@ class PatientController extends Controller
 
         $this->ensureClinicalChartsTable();
 
-        $toothNotesRaw = (string) $request->input('tooth_notes', '{}');
-        $toothNotes = json_decode($toothNotesRaw, true);
-        if (!is_array($toothNotes)) {
-            $toothNotes = [];
-        }
-        // Keep only non-empty notes
-        $toothNotes = array_filter(
-            $toothNotes,
-            static fn ($v) => is_string($v) ? trim($v) !== '' : $v !== null && $v !== ''
-        );
-
         $allowedConditions = ['diabetes', 'cholesterol', 'blood pressure'];
         $conditions = $request->input('medical_conditions', []);
         if (!is_array($conditions)) {
@@ -723,50 +726,16 @@ class PatientController extends Controller
                 'items' => $habits,
                 'other' => $habitOther,
             ], JSON_UNESCAPED_UNICODE),
-            'test_advised' => $request->input('test_advised', ''),
-            'tooth_notes' => json_encode($toothNotes, JSON_UNESCAPED_UNICODE),
-            'allotted_doctor_id' => $request->input('allotted_doctor_id') ?: null,
-            'test_done' => $request->input('test_done', ''),
-            'next_appt_date' => $request->input('next_appt_date') ?: null,
-            'next_appt_time' => $request->input('next_appt_time') ?: null,
-            'next_appt_test' => $request->input('next_appt_test', ''),
-            'next_appt_doctor_id' => $request->input('next_appt_doctor_id') ?: null,
-            'lab_work' => json_encode([
-                'product' => trim((string) $request->input('lab_product', '')),
-                'shade' => trim((string) $request->input('lab_shade', '')),
-                'brand' => trim((string) $request->input('lab_brand', '')),
-                'lab_name' => trim((string) $request->input('lab_name', '')),
-            ], JSON_UNESCAPED_UNICODE),
-            'implant_work' => json_encode([
-                'brand' => trim((string) $request->input('implant_brand', '')),
-                'hex_type' => trim((string) $request->input('implant_hex_type', '')),
-                'healing_cap' => trim((string) $request->input('implant_healing_cap', '')),
-                'loading' => trim((string) $request->input('implant_loading', '')),
-                'lab_product' => trim((string) $request->input('implant_lab_product', '')),
-                'next_date' => trim((string) $request->input('implant_next_date', '')),
-                'next_time' => trim((string) $request->input('implant_next_time', '')),
-                'work_to_be_done' => trim((string) $request->input('implant_work_done', '')),
-                'substructure' => trim((string) $request->input('implant_substructure', '')),
-                'superstructure' => trim((string) $request->input('implant_superstructure', '')),
-                'notation' => trim((string) $request->input('implant_notation', '')),
-            ], JSON_UNESCAPED_UNICODE),
+            'on_examination' => trim((string) $request->input('on_examination', '')),
             'updated_by' => Auth::id(),
             'updated_at' => date('Y-m-d H:i:s'),
         ];
 
         $existing = Database::fetch(
-            'SELECT id, next_appointment_id, implant_appointment_id FROM patient_clinical_charts WHERE patient_id = ? LIMIT 1',
+            'SELECT id FROM patient_clinical_charts WHERE patient_id = ? LIMIT 1',
             [(int) $id]
         );
 
-        $linkedAppointmentId = $existing ? (int) ($existing['next_appointment_id'] ?? 0) : 0;
-        $linkedImplantId = $existing ? (int) ($existing['implant_appointment_id'] ?? 0) : 0;
-        $appointmentId = null;
-        $implantAppointmentId = null;
-        $calendarMessage = '';
-        $calendarWarning = '';
-
-        // Persist clinical chart first so calendar/slot errors never wipe patient notes.
         try {
             if ($existing) {
                 Database::update('patient_clinical_charts', $payload, 'id = :_id', ['_id' => (int) $existing['id']]);
@@ -774,13 +743,13 @@ class PatientController extends Controller
                     'chief_complaint' => $payload['chief_complaint'],
                     'drug_list' => $payload['drug_list'],
                     'habit' => $payload['habit'],
+                    'on_examination' => $payload['on_examination'],
                 ]);
             } else {
                 $payload['patient_id'] = (int) $id;
                 $payload['created_by'] = Auth::id();
                 $payload['created_at'] = date('Y-m-d H:i:s');
-                $newId = Database::insert('patient_clinical_charts', $payload);
-                $existing = ['id' => $newId];
+                Database::insert('patient_clinical_charts', $payload);
                 AuditService::log('patients', 'clinical_chart_create', (int) $id, null, [
                     'chief_complaint' => $payload['chief_complaint'],
                 ]);
@@ -793,59 +762,102 @@ class PatientController extends Controller
             $this->redirect('patients/' . $id . '?tab=clinical');
         }
 
-        try {
-            $synced = (new AppointmentService())->syncFromClinicalChart(
-                (int) $id,
-                array_merge($payload, [
-                    'implant_work' => $payload['implant_work'],
-                    'allotted_doctor_id' => $payload['allotted_doctor_id'],
-                ]),
-                $linkedAppointmentId > 0 ? $linkedAppointmentId : null,
-                $linkedImplantId > 0 ? $linkedImplantId : null
-            );
-            $appointmentId = $synced['main'] ?? null;
-            $implantAppointmentId = $synced['implant'] ?? null;
-
-            $linkUpdate = [];
-            if ($this->hasNextAppointmentColumn()) {
-                $linkUpdate['next_appointment_id'] = $appointmentId;
-            }
-            if ($this->hasImplantAppointmentColumn()) {
-                $linkUpdate['implant_appointment_id'] = $implantAppointmentId;
-            }
-            if ($linkUpdate && !empty($existing['id'])) {
-                $linkUpdate['updated_at'] = date('Y-m-d H:i:s');
-                Database::update('patient_clinical_charts', $linkUpdate, 'id = :_id', ['_id' => (int) $existing['id']]);
-            }
-
-            if (array_filter([$appointmentId, $implantAppointmentId])) {
-                $calendarMessage = ' Treatment appointment added to calendar.';
-            }
-        } catch (\Throwable $e) {
-            $calendarWarning = ' Chart saved, but calendar booking failed: ' . $e->getMessage();
-        }
-
-        $message = 'Clinical chart saved successfully.' . $calendarMessage . $calendarWarning;
-        $calendarDate = $payload['next_appt_date'] ?: null;
-        if (!$calendarDate && $implantAppointmentId) {
-            $imp = json_decode((string) $payload['implant_work'], true);
-            $calendarDate = is_array($imp) ? ($imp['next_date'] ?? null) : null;
-        }
-
-        $redirect = App::url('patients/' . $id . '?tab=clinical');
+        $message = 'Clinical chart saved successfully.';
+        $redirect = App::url('patients/' . $id . '?tab=plan');
         if ($request->isAjax()) {
-            $this->jsonSuccess($message, [
-                'appointment_id' => $appointmentId ?: $implantAppointmentId,
-                'implant_appointment_id' => $implantAppointmentId,
-                'redirect' => $redirect,
-                'calendar_url' => $calendarDate
-                    ? App::url('calendar?date=' . urlencode((string) $calendarDate))
-                    : App::url('calendar'),
-            ]);
+            $this->jsonSuccess($message, ['redirect' => $redirect]);
         }
 
-        Session::flash($calendarWarning !== '' ? 'warning' : 'success', $message);
-        $this->redirect('patients/' . $id . '?tab=clinical');
+        Session::flash('success', $message);
+        $this->redirect('patients/' . $id . '?tab=plan');
+    }
+
+    public function saveSuggestedPlan(Request $request, string $id): void
+    {
+        $patient = Database::fetch('SELECT id, patient_code, name, mobile FROM patients WHERE id = ? AND deleted_at IS NULL', [$id]);
+        if (!$patient) {
+            $this->jsonError('Patient not found.', null, 404);
+        }
+
+        $this->ensureSuggestedTreatmentsTable();
+
+        $items = $request->input('items', []);
+        if (!is_array($items)) {
+            $items = [];
+        }
+
+        $normalized = [];
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $description = trim((string) ($item['description'] ?? ''));
+            if ($description === '') {
+                continue;
+            }
+            $normalized[] = [
+                'id' => (int) ($item['id'] ?? 0),
+                'description' => $description,
+                'doctor_id' => (int) ($item['doctor_id'] ?? 0) ?: null,
+            ];
+        }
+
+        if ($normalized === []) {
+            if ($request->isAjax()) {
+                $this->jsonError('Line 1 of the suggested treatment plan is compulsory.');
+            }
+            Session::flash('error', 'Line 1 of the suggested treatment plan is compulsory.');
+            $this->redirect('patients/' . $id . '?tab=plan');
+        }
+
+        $existing = Database::fetchAll(
+            'SELECT id FROM patient_suggested_treatments WHERE patient_id = ?',
+            [(int) $id]
+        );
+        $existingIds = array_map(static fn ($r) => (int) $r['id'], $existing);
+        $keptIds = [];
+        $now = date('Y-m-d H:i:s');
+        $sort = 1;
+
+        foreach ($normalized as $item) {
+            $payload = [
+                'description' => $item['description'],
+                'doctor_id' => $item['doctor_id'],
+                'sort_order' => $sort,
+                'updated_by' => Auth::id(),
+                'updated_at' => $now,
+            ];
+            if ($item['id'] > 0 && in_array($item['id'], $existingIds, true)) {
+                Database::update('patient_suggested_treatments', $payload, 'id = :_id AND patient_id = :_pid', [
+                    '_id' => $item['id'],
+                    '_pid' => (int) $id,
+                ]);
+                $keptIds[] = $item['id'];
+            } else {
+                $payload['patient_id'] = (int) $id;
+                $payload['created_by'] = Auth::id();
+                $payload['created_at'] = $now;
+                $keptIds[] = Database::insert('patient_suggested_treatments', $payload);
+            }
+            $sort++;
+        }
+
+        if ($existingIds) {
+            $deleteIds = array_diff($existingIds, $keptIds);
+            foreach ($deleteIds as $deleteId) {
+                Database::query('DELETE FROM patient_suggested_treatments WHERE id = ? AND patient_id = ?', [$deleteId, (int) $id]);
+            }
+        }
+
+        AuditService::log('patients', 'suggested_plan_save', (int) $id, null, ['count' => count($normalized)]);
+
+        $message = 'Suggested treatment plan saved successfully.';
+        $redirect = App::url('patients/' . $id . '?tab=plan');
+        if ($request->isAjax()) {
+            $this->jsonSuccess($message, ['redirect' => $redirect]);
+        }
+        Session::flash('success', $message);
+        $this->redirect('patients/' . $id . '?tab=plan');
     }
 
     private function hasNextAppointmentColumn(): bool
@@ -879,6 +891,7 @@ class PatientController extends Controller
               chief_complaint TEXT NULL,
               drug_list TEXT NULL,
               habit TEXT NULL,
+              on_examination TEXT NULL,
               test_advised TEXT NULL,
               tooth_notes JSON NULL,
               allotted_doctor_id INT UNSIGNED NULL,
@@ -910,6 +923,36 @@ class PatientController extends Controller
         if (!$impApptCol) {
             Database::query('ALTER TABLE patient_clinical_charts ADD COLUMN implant_appointment_id INT UNSIGNED NULL AFTER next_appointment_id');
         }
+        $examCol = Database::fetch("SHOW COLUMNS FROM patient_clinical_charts LIKE 'on_examination'");
+        if (!$examCol) {
+            Database::query('ALTER TABLE patient_clinical_charts ADD COLUMN on_examination TEXT NULL AFTER habit');
+        }
+
+        $ready = true;
+    }
+
+    private function ensureSuggestedTreatmentsTable(): void
+    {
+        static $ready = false;
+        if ($ready) {
+            return;
+        }
+
+        Database::connection()->exec(
+            "CREATE TABLE IF NOT EXISTS patient_suggested_treatments (
+              id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+              patient_id INT UNSIGNED NOT NULL,
+              sort_order INT UNSIGNED NOT NULL DEFAULT 1,
+              description VARCHAR(255) NOT NULL,
+              doctor_id INT UNSIGNED NULL,
+              appointment_id INT UNSIGNED NULL,
+              created_by INT UNSIGNED NULL,
+              updated_by INT UNSIGNED NULL,
+              created_at DATETIME NULL,
+              updated_at DATETIME NULL,
+              INDEX idx_pst_patient (patient_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
 
         $ready = true;
     }

@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS patient_clinical_charts (
   chief_complaint TEXT NULL,
   drug_list TEXT NULL,
   habit TEXT NULL,
+  on_examination TEXT NULL,
   test_advised TEXT NULL,
   tooth_notes JSON NULL,
   allotted_doctor_id INT UNSIGNED NULL,

@@ -1967,11 +1967,59 @@ table.dataTable,
     background: var(--primary-light);
 }
 
-.patient-profile-tabs .nav-link.active {
-    color: var(--primary-color) !important;
-    background: transparent !important;
-    border-bottom-color: var(--primary-color);
-    font-weight: 600;
+.patient-profile-tabs .nav-link.is-locked {
+    color: #94a3b8;
+    opacity: .75;
+}
+
+.suggested-plan-head {
+    margin-bottom: 1rem;
+}
+
+.suggested-plan-list {
+    display: flex;
+    flex-direction: column;
+    gap: .85rem;
+}
+
+.suggested-plan-row {
+    display: flex;
+    gap: .85rem;
+    align-items: flex-start;
+    padding: .9rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: .75rem;
+    background: #fff;
+}
+
+.suggested-plan-num {
+    min-width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: var(--primary-light);
+    color: var(--primary-dark);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: .2rem;
+}
+
+.suggested-plan-fields {
+    flex: 1;
+    min-width: 0;
+}
+
+.suggested-plan-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-top: .6rem;
+}
+
+.suggested-plan-actions .form-select {
+    min-width: 210px;
+    max-width: 280px;
 }
 
 .patient-history-timeline {

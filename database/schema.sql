@@ -18,6 +18,8 @@ DROP TABLE IF EXISTS inventory_items;
 DROP TABLE IF EXISTS inventory_categories;
 DROP TABLE IF EXISTS payments;
 DROP TABLE IF EXISTS bills;
+DROP TABLE IF EXISTS patient_clinical_charts;
+DROP TABLE IF EXISTS patient_suggested_treatments;
 DROP TABLE IF EXISTS patient_documents;
 DROP TABLE IF EXISTS follow_ups;
 DROP TABLE IF EXISTS prescription_items;
@@ -481,6 +483,7 @@ CREATE TABLE patient_clinical_charts (
   chief_complaint TEXT NULL,
   drug_list TEXT NULL,
   habit TEXT NULL,
+  on_examination TEXT NULL,
   test_advised TEXT NULL,
   tooth_notes JSON NULL,
   allotted_doctor_id INT UNSIGNED NULL,
@@ -501,6 +504,22 @@ CREATE TABLE patient_clinical_charts (
   FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
   FOREIGN KEY (allotted_doctor_id) REFERENCES doctors(id) ON DELETE SET NULL,
   FOREIGN KEY (next_appt_doctor_id) REFERENCES doctors(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE patient_suggested_treatments (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  patient_id INT UNSIGNED NOT NULL,
+  sort_order INT UNSIGNED NOT NULL DEFAULT 1,
+  description VARCHAR(255) NOT NULL,
+  doctor_id INT UNSIGNED NULL,
+  appointment_id INT UNSIGNED NULL,
+  created_by INT UNSIGNED NULL,
+  updated_by INT UNSIGNED NULL,
+  created_at DATETIME NULL,
+  updated_at DATETIME NULL,
+  INDEX idx_pst_patient (patient_id),
+  FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
+  FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE bills (

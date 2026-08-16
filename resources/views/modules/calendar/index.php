@@ -269,10 +269,26 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('visitReasonField').value = this.value;
   });
 
+  const qs = new URLSearchParams(window.location.search);
+  const prefillPatientId = qs.get('patient_id') || '';
+  const prefillDoctorId = qs.get('doctor_id') || '';
+  const prefillReason = qs.get('reason') || '';
+  const prefillPatientText = qs.get('patient_text') || '';
+  if (prefillPatientId && !patientData.some(function (p) { return String(p.id) === String(prefillPatientId); })) {
+    patientData.unshift({ id: String(prefillPatientId), text: prefillPatientText || ('Patient #' + prefillPatientId) });
+  }
+
   jQuery(function () {
     setTimeout(function () {
-      initPatientSelect();
+      initPatientSelect(prefillPatientId || null);
       syncEntryType();
+      if (qs.get('open_book') === '1') {
+        openBookModal('<?= date('Y-m-d') ?>', '10:00', {
+          patientId: prefillPatientId,
+          doctorId: prefillDoctorId,
+          reason: prefillReason
+        });
+      }
     }, 0);
   });
 
@@ -347,7 +363,7 @@ document.addEventListener('DOMContentLoaded', function () {
     return pad2(d.getDate()) + '-' + pad2(d.getMonth() + 1) + '-' + d.getFullYear();
   }
 
-  function openBookModal(dateStr, timeStr) {
+  function openBookModal(dateStr, timeStr, prefill) {
     document.getElementById('appointmentDate').value = (dateStr || '<?= date('Y-m-d') ?>').substring(0, 10);
     if (timeStr) {
       document.getElementById('startTime').value = timeStr;
@@ -358,8 +374,16 @@ document.addEventListener('DOMContentLoaded', function () {
       document.getElementById('startTime').value = '10:00';
       document.getElementById('endTime').value = '10:30';
     }
-    if (document.getElementById('doctorFilter').value) {
-      document.getElementById('modalDoctor').value = document.getElementById('doctorFilter').value;
+    const doctorId = (prefill && prefill.doctorId) || document.getElementById('doctorFilter').value;
+    if (doctorId && document.getElementById('modalDoctor')) {
+      document.getElementById('modalDoctor').value = doctorId;
+    }
+    if (prefill && prefill.reason) {
+      document.getElementById('notesField').value = prefill.reason;
+      document.getElementById('visitReasonField').value = prefill.reason;
+    }
+    if (prefill && prefill.patientId) {
+      initPatientSelect(prefill.patientId);
     }
     modal && modal.show();
   }
@@ -480,7 +504,7 @@ document.addEventListener('DOMContentLoaded', function () {
           <?php if (can('treatments.add')): ?>
           window.location.href = '<?= app_url('treatment-plans/create') ?>?' + qs.toString();
           <?php else: ?>
-          window.location.href = '<?= app_url('patients') ?>/' + encodeURIComponent(patientId) + '?tab=treatments';
+          window.location.href = '<?= app_url('patients') ?>/' + encodeURIComponent(patientId) + '?tab=plan';
           <?php endif; ?>
           return;
         }

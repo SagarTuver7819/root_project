@@ -70,6 +70,7 @@ function roots_live_update(): array
         'implant_appointment_id' => 'INT UNSIGNED NULL',
         'lab_work' => 'LONGTEXT NULL',
         'implant_work' => 'LONGTEXT NULL',
+        'on_examination' => 'TEXT NULL',
     ] as $col => $def) {
         if (!$columnExists('patient_clinical_charts', $col)) {
             Database::query("ALTER TABLE patient_clinical_charts ADD COLUMN `{$col}` {$def}");
@@ -84,6 +85,27 @@ function roots_live_update(): array
         $log[] = 'Added bills.booking_amount';
     } elseif ($tableExists('bills')) {
         $log[] = 'OK bills.booking_amount';
+    }
+
+    if (!$tableExists('patient_suggested_treatments')) {
+        Database::connection()->exec(
+            "CREATE TABLE IF NOT EXISTS patient_suggested_treatments (
+              id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+              patient_id INT UNSIGNED NOT NULL,
+              sort_order INT UNSIGNED NOT NULL DEFAULT 1,
+              description VARCHAR(255) NOT NULL,
+              doctor_id INT UNSIGNED NULL,
+              appointment_id INT UNSIGNED NULL,
+              created_by INT UNSIGNED NULL,
+              updated_by INT UNSIGNED NULL,
+              created_at DATETIME NULL,
+              updated_at DATETIME NULL,
+              INDEX idx_pst_patient (patient_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+        $log[] = 'Created patient_suggested_treatments';
+    } else {
+        $log[] = 'OK patient_suggested_treatments table';
     }
 
     // --- Role permissions ---
