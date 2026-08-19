@@ -282,6 +282,15 @@ document.addEventListener('DOMContentLoaded', function () {
     setTimeout(function () {
       initPatientSelect(prefillPatientId || null);
       syncEntryType();
+      const ret = qs.get('return') || '';
+      if (/^patients\/\d+/.test(ret)) {
+        const bookForm = document.querySelector('.book-slot-modal');
+        if (bookForm) {
+          bookForm.removeAttribute('data-reload');
+          bookForm.setAttribute('data-redirect', <?= json_encode(rtrim(app_url(), '/')) ?> + '/' + ret);
+          jQuery(bookForm).removeData('reload').data('redirect', <?= json_encode(rtrim(app_url(), '/')) ?> + '/' + ret);
+        }
+      }
       if (qs.get('open_book') === '1') {
         openBookModal('<?= date('Y-m-d') ?>', '10:00', {
           patientId: prefillPatientId,

@@ -2022,6 +2022,158 @@ table.dataTable,
     max-width: 280px;
 }
 
+.suggested-plan-row.is-active {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(0, 174, 239, .12);
+}
+
+.suggested-plan-teeth {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    min-height: 1.4rem;
+    margin-top: .45rem;
+}
+
+.suggested-plan-teeth .tooth-chip {
+    display: inline-flex;
+    align-items: center;
+    background: var(--primary-light);
+    color: var(--primary-dark);
+    border-radius: 999px;
+    padding: .1rem .55rem;
+    font-size: .78rem;
+    font-weight: 700;
+}
+
+.palmer-wrap {
+    border: 1px solid #d7dde6;
+    border-radius: 1rem;
+    background: #fbfcfe;
+    padding: 1rem 1rem 1.15rem;
+    margin-bottom: 1.25rem;
+}
+
+.palmer-wrap-title {
+    font-weight: 700;
+    margin-bottom: .75rem;
+}
+
+.palmer-arch {
+    background: #fff;
+    border: 1px solid #e5eaf0;
+    border-radius: .85rem;
+    padding: .85rem 1rem 1rem;
+    margin-bottom: .75rem;
+}
+
+.palmer-arch:last-child {
+    margin-bottom: 0;
+}
+
+.palmer-arch-label {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    font-weight: 700;
+    font-size: .92rem;
+    padding: .28rem .7rem;
+    border-radius: 999px;
+    margin-bottom: .7rem;
+}
+
+.palmer-arch-label.permanent {
+    background: #ece8ff;
+    color: #5b4db0;
+}
+
+.palmer-arch-label.deciduous {
+    background: #d9f3ff;
+    color: #1d6f92;
+}
+
+.palmer-quad-labels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .25rem;
+    font-size: .72rem;
+    color: #64748b;
+    font-weight: 600;
+    margin-bottom: .2rem;
+}
+
+.palmer-quad-labels.lower {
+    margin-top: .25rem;
+    margin-bottom: 0;
+}
+
+.palmer-grid {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(16, minmax(0, 1fr));
+    gap: .28rem .22rem;
+    padding: .35rem 0;
+}
+
+.palmer-grid.deciduous {
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    max-width: 560px;
+    margin: 0 auto;
+}
+
+.palmer-grid::before,
+.palmer-grid::after {
+    content: "";
+    position: absolute;
+    background: #111;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.palmer-grid::before {
+    left: 50%;
+    top: -2px;
+    bottom: -2px;
+    width: 3px;
+    transform: translateX(-50%);
+}
+
+.palmer-grid::after {
+    top: 50%;
+    left: -2px;
+    right: -2px;
+    height: 3px;
+    transform: translateY(-50%);
+}
+
+.palmer-tooth {
+    border: 0;
+    background: transparent;
+    font-weight: 800;
+    font-size: .95rem;
+    color: #1e293b;
+    min-height: 2rem;
+    border-radius: .4rem;
+    z-index: 2;
+}
+
+.palmer-tooth:hover,
+.palmer-tooth:focus-visible {
+    background: rgba(0, 174, 239, .16);
+    color: var(--primary-dark);
+}
+
+.palmer-tooth.is-selected {
+    background: #00AEEF;
+    color: #fff;
+}
+
+.palmer-hint {
+    font-size: .8rem;
+    color: #64748b;
+    margin: 0;
+}
+
 .patient-history-timeline {
     position: relative;
     padding-left: 1.1rem;
@@ -2496,8 +2648,6 @@ a.kanban-patient-name:hover {
     .fd-dash .btn-lg {
         width: 100%;
     }
-}
-    gap: .45rem;
 }
 
 /* Patient Clinical Chart / Dental Odontogram (client photo + clickable hotspots) */

@@ -539,9 +539,20 @@ class PatientController extends Controller
                     'SELECT id, name FROM doctors WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name ASC'
                 );
                 $savedItems = Database::fetchAll(
-                    'SELECT id, description, doctor_id, sort_order FROM patient_suggested_treatments WHERE patient_id = ? ORDER BY sort_order ASC, id ASC',
+                    'SELECT id, description, doctor_id, teeth, sort_order FROM patient_suggested_treatments WHERE patient_id = ? ORDER BY sort_order ASC, id ASC',
                     [(int) $id]
                 );
+                $chartNotes = Database::fetch(
+                    'SELECT tooth_notes FROM patient_clinical_charts WHERE patient_id = ? LIMIT 1',
+                    [(int) $id]
+                );
+                $toothNotes = [];
+                if (!empty($chartNotes['tooth_notes'])) {
+                    $decoded = json_decode((string) $chartNotes['tooth_notes'], true);
+                    if (is_array($decoded)) {
+                        $toothNotes = $decoded;
+                    }
+                }
                 $id = (int) $id;
                 ob_start();
                 require dirname(__DIR__, 2) . '/resources/views/modules/patients/tabs/plan.php';
@@ -799,6 +810,7 @@ class PatientController extends Controller
                 'id' => (int) ($item['id'] ?? 0),
                 'description' => $description,
                 'doctor_id' => (int) ($item['doctor_id'] ?? 0) ?: null,
+                'teeth' => trim((string) ($item['teeth'] ?? '')),
             ];
         }
 
@@ -823,6 +835,7 @@ class PatientController extends Controller
             $payload = [
                 'description' => $item['description'],
                 'doctor_id' => $item['doctor_id'],
+                'teeth' => $item['teeth'] !== '' ? $item['teeth'] : null,
                 'sort_order' => $sort,
                 'updated_by' => Auth::id(),
                 'updated_at' => $now,
@@ -851,6 +864,8 @@ class PatientController extends Controller
 
         AuditService::log('patients', 'suggested_plan_save', (int) $id, null, ['count' => count($normalized)]);
 
+        $this->saveToothNotesFromRequest($request, (int) $id);
+
         $message = 'Suggested treatment plan saved successfully.';
         $redirect = App::url('patients/' . $id . '?tab=plan');
         if ($request->isAjax()) {
@@ -858,6 +873,47 @@ class PatientController extends Controller
         }
         Session::flash('success', $message);
         $this->redirect('patients/' . $id . '?tab=plan');
+    }
+
+    private function saveToothNotesFromRequest(Request $request, int $patientId): void
+    {
+        $raw = $request->input('tooth_notes', '{}');
+        if (is_array($raw)) {
+            $notes = $raw;
+        } else {
+            $decoded = json_decode((string) $raw, true);
+            $notes = is_array($decoded) ? $decoded : [];
+        }
+
+        $clean = [];
+        foreach ($notes as $tooth => $note) {
+            $code = trim((string) $tooth);
+            $text = trim((string) $note);
+            if ($code === '' || $text === '') {
+                continue;
+            }
+            $clean[$code] = $text;
+        }
+
+        $this->ensureClinicalChartsTable();
+        $existing = Database::fetch(
+            'SELECT id FROM patient_clinical_charts WHERE patient_id = ? LIMIT 1',
+            [$patientId]
+        );
+        $payload = [
+            'tooth_notes' => json_encode($clean, JSON_UNESCAPED_UNICODE),
+            'updated_by' => Auth::id(),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        if ($existing) {
+            Database::update('patient_clinical_charts', $payload, 'id = :_id', ['_id' => (int) $existing['id']]);
+            return;
+        }
+
+        $payload['patient_id'] = $patientId;
+        $payload['created_by'] = Auth::id();
+        $payload['created_at'] = date('Y-m-d H:i:s');
+        Database::insert('patient_clinical_charts', $payload);
     }
 
     private function hasNextAppointmentColumn(): bool
@@ -946,6 +1002,7 @@ class PatientController extends Controller
               description VARCHAR(255) NOT NULL,
               doctor_id INT UNSIGNED NULL,
               appointment_id INT UNSIGNED NULL,
+              teeth VARCHAR(255) NULL,
               created_by INT UNSIGNED NULL,
               updated_by INT UNSIGNED NULL,
               created_at DATETIME NULL,
@@ -953,6 +1010,11 @@ class PatientController extends Controller
               INDEX idx_pst_patient (patient_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
         );
+
+        $teethCol = Database::fetch("SHOW COLUMNS FROM patient_suggested_treatments LIKE 'teeth'");
+        if (!$teethCol) {
+            Database::query('ALTER TABLE patient_suggested_treatments ADD COLUMN teeth VARCHAR(255) NULL AFTER appointment_id');
+        }
 
         $ready = true;
     }

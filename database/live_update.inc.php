@@ -96,6 +96,7 @@ function roots_live_update(): array
               description VARCHAR(255) NOT NULL,
               doctor_id INT UNSIGNED NULL,
               appointment_id INT UNSIGNED NULL,
+              teeth VARCHAR(255) NULL,
               created_by INT UNSIGNED NULL,
               updated_by INT UNSIGNED NULL,
               created_at DATETIME NULL,
@@ -106,6 +107,13 @@ function roots_live_update(): array
         $log[] = 'Created patient_suggested_treatments';
     } else {
         $log[] = 'OK patient_suggested_treatments table';
+    }
+
+    if ($tableExists('patient_suggested_treatments') && !$columnExists('patient_suggested_treatments', 'teeth')) {
+        Database::query('ALTER TABLE patient_suggested_treatments ADD COLUMN teeth VARCHAR(255) NULL AFTER appointment_id');
+        $log[] = 'Added patient_suggested_treatments.teeth';
+    } elseif ($tableExists('patient_suggested_treatments')) {
+        $log[] = 'OK patient_suggested_treatments.teeth';
     }
 
     // --- Role permissions ---

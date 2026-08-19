@@ -513,6 +513,7 @@ CREATE TABLE patient_suggested_treatments (
   description VARCHAR(255) NOT NULL,
   doctor_id INT UNSIGNED NULL,
   appointment_id INT UNSIGNED NULL,
+  teeth VARCHAR(255) NULL,
   created_by INT UNSIGNED NULL,
   updated_by INT UNSIGNED NULL,
   created_at DATETIME NULL,
