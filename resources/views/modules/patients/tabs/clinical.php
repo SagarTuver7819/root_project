@@ -196,23 +196,61 @@ $habitData = $parseClinicalChecklist($chart['habit'] ?? '', $habitOptions, 'item
             >
         </div>
 
+        <?php
+        $renderClinicalDoc = static function (array $doc, int $patientId, bool $canEdit): void {
+            $path = (string) ($doc['file_path'] ?? '');
+            $url = upload_url($path);
+            $label = (string) ($doc['description'] ?: basename($path));
+            $isImage = (bool) preg_match('/\.(jpe?g|png|webp|gif)$/i', $path);
+            ?>
+            <div class="clinical-doc-item">
+                <?php if ($isImage): ?>
+                    <a href="<?= e($url) ?>" target="_blank" rel="noopener" class="clinical-doc-thumb-link">
+                        <img src="<?= e($url) ?>" alt="<?= e($label) ?>" class="clinical-doc-thumb" loading="lazy">
+                    </a>
+                <?php endif; ?>
+                <div class="clinical-doc-meta">
+                    <a href="<?= e($url) ?>" target="_blank" rel="noopener" class="clinical-doc-name"><?= e($label) ?></a>
+                    <span class="text-muted"><?= e(format_date($doc['created_at'] ?? null, 'd-m-Y')) ?></span>
+                </div>
+                <?php if ($canEdit): ?>
+                    <button
+                        type="button"
+                        class="btn btn-sm btn-light text-danger btn-delete"
+                        data-url="<?= e(app_url('patients/' . $patientId . '/documents/' . ($doc['id'] ?? '') . '/delete')) ?>"
+                        data-message="Delete this uploaded file?"
+                        data-reload-tab="clinical"
+                        title="Remove"
+                    ><i class="bi bi-trash"></i></button>
+                <?php endif; ?>
+            </div>
+            <?php
+        };
+        ?>
+
         <div class="col-md-6">
             <div class="fw-semibold mb-2">4. X-Ray</div>
             <?php if ($canEdit): ?>
-            <div class="d-flex gap-2 mb-2 clinical-doc-upload-row" data-type="xray">
-                <input type="file" class="form-control form-control-sm clinical-doc-file" data-type="xray" accept=".pdf,.jpg,.jpeg,.png,.webp">
-                <button type="button" class="btn btn-sm btn-outline-primary clinical-doc-upload" data-type="xray">Upload</button>
+            <div class="clinical-doc-upload-row mb-2" data-type="xray">
+                <div class="d-flex gap-2">
+                    <input
+                        type="file"
+                        class="form-control form-control-sm clinical-doc-file"
+                        data-type="xray"
+                        accept=".pdf,.jpg,.jpeg,.png,.webp,image/*,application/pdf"
+                        multiple
+                    >
+                    <button type="button" class="btn btn-sm btn-outline-primary clinical-doc-upload" data-type="xray">Upload</button>
+                </div>
+                <div class="form-text clinical-doc-selected" data-type="xray">Multiple files select kari shakay (JPG, PNG, WEBP, PDF).</div>
             </div>
             <?php endif; ?>
-            <div class="clinical-doc-list small" data-doc-list="xray">
+            <div class="clinical-doc-list" data-doc-list="xray">
                 <?php if (empty($xrays)): ?>
-                    <div class="text-muted">No X-Ray uploaded.</div>
+                    <div class="text-muted small">No X-Ray uploaded.</div>
                 <?php else: ?>
                     <?php foreach ($xrays as $doc): ?>
-                        <div class="d-flex justify-content-between align-items-center border-bottom py-1">
-                            <a href="<?= e(upload_url((string) ($doc['file_path'] ?? ''))) ?>" target="_blank" rel="noopener"><?= e($doc['description'] ?: basename((string) $doc['file_path'])) ?></a>
-                            <span class="text-muted"><?= e(format_date($doc['created_at'] ?? null, 'd-m-Y')) ?></span>
-                        </div>
+                        <?php $renderClinicalDoc($doc, $patientId, $canEdit); ?>
                     <?php endforeach; ?>
                 <?php endif; ?>
             </div>
@@ -221,20 +259,26 @@ $habitData = $parseClinicalChecklist($chart['habit'] ?? '', $habitOptions, 'item
         <div class="col-md-6">
             <div class="fw-semibold mb-2">5. Clinical Pictures</div>
             <?php if ($canEdit): ?>
-            <div class="d-flex gap-2 mb-2 clinical-doc-upload-row" data-type="clinical_picture">
-                <input type="file" class="form-control form-control-sm clinical-doc-file" data-type="clinical_picture" accept=".jpg,.jpeg,.png,.webp">
-                <button type="button" class="btn btn-sm btn-outline-primary clinical-doc-upload" data-type="clinical_picture">Upload</button>
+            <div class="clinical-doc-upload-row mb-2" data-type="clinical_picture">
+                <div class="d-flex gap-2">
+                    <input
+                        type="file"
+                        class="form-control form-control-sm clinical-doc-file"
+                        data-type="clinical_picture"
+                        accept=".jpg,.jpeg,.png,.webp,image/*"
+                        multiple
+                    >
+                    <button type="button" class="btn btn-sm btn-outline-primary clinical-doc-upload" data-type="clinical_picture">Upload</button>
+                </div>
+                <div class="form-text clinical-doc-selected" data-type="clinical_picture">Multiple photos select kari shakay (JPG, PNG, WEBP).</div>
             </div>
             <?php endif; ?>
-            <div class="clinical-doc-list small" data-doc-list="clinical_picture">
+            <div class="clinical-doc-list clinical-doc-list-grid" data-doc-list="clinical_picture">
                 <?php if (empty($pictures)): ?>
-                    <div class="text-muted">No clinical pictures uploaded.</div>
+                    <div class="text-muted small">No clinical pictures uploaded.</div>
                 <?php else: ?>
                     <?php foreach ($pictures as $doc): ?>
-                        <div class="d-flex justify-content-between align-items-center border-bottom py-1">
-                            <a href="<?= e(upload_url((string) ($doc['file_path'] ?? ''))) ?>" target="_blank" rel="noopener"><?= e($doc['description'] ?: basename((string) $doc['file_path'])) ?></a>
-                            <span class="text-muted"><?= e(format_date($doc['created_at'] ?? null, 'd-m-Y')) ?></span>
-                        </div>
+                        <?php $renderClinicalDoc($doc, $patientId, $canEdit); ?>
                     <?php endforeach; ?>
                 <?php endif; ?>
             </div>
@@ -253,6 +297,23 @@ $habitData = $parseClinicalChecklist($chart['habit'] ?? '', $habitOptions, 'item
 (function () {
   const root = document.querySelector('.clinical-chart-form');
   if (!root) return;
+
+  root.querySelectorAll('.clinical-doc-file').forEach(function (input) {
+    const type = input.dataset.type || '';
+    const hint = root.querySelector('.clinical-doc-selected[data-type="' + type + '"]');
+    const syncHint = function () {
+      if (!hint) return;
+      const count = input.files ? input.files.length : 0;
+      if (count <= 0) {
+        hint.textContent = type === 'xray'
+          ? 'Multiple files select kari shakay (JPG, PNG, WEBP, PDF).'
+          : 'Multiple photos select kari shakay (JPG, PNG, WEBP).';
+        return;
+      }
+      hint.textContent = count + ' file(s) selected. Upload par click karo.';
+    };
+    input.addEventListener('change', syncHint);
+  });
 
   root.querySelectorAll('.clinical-other-toggle').forEach(function (toggle) {
     const target = document.querySelector(toggle.getAttribute('data-target'));

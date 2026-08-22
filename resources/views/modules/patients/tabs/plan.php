@@ -34,7 +34,7 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
 };
 ?>
 
-<form method="post" action="<?= app_url('patients/' . $patientId . '/suggested-plan') ?>" class="ajax-form suggested-plan-form" data-redirect="<?= e(app_url('patients/' . $patientId . '?tab=plan')) ?>">
+<form method="post" action="<?= app_url('patients/' . $patientId . '/suggested-plan') ?>" class="ajax-form suggested-plan-form" data-redirect="<?= e(app_url('patients/' . $patientId . '?tab=estimate')) ?>">
     <?= csrf_field() ?>
     <input type="hidden" name="tooth_notes" id="suggestedPlanToothNotes" value="<?= e(json_encode($toothNotes ?: new stdClass(), JSON_UNESCAPED_UNICODE | JSON_FORCE_OBJECT)) ?>">
 
@@ -121,7 +121,12 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
             <button type="button" class="btn btn-outline-secondary" id="addSuggestedPlanRow">
                 <i class="bi bi-plus-lg me-1"></i>Add next treatment
             </button>
-            <button type="submit" class="btn btn-primary">Save Treatment Plan</button>
+            <?php if (can('quotations.add')): ?>
+                <a class="btn btn-outline-primary" href="<?= app_url('patients/' . $patientId . '?tab=estimate') ?>">
+                    <i class="bi bi-file-earmark-text me-1"></i>Treatment Estimate
+                </a>
+            <?php endif; ?>
+            <button type="submit" class="btn btn-primary">Save &amp; Open Estimate</button>
         </div>
     <?php endif; ?>
 </form>

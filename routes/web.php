@@ -16,6 +16,7 @@ use App\Controllers\PatientController;
 use App\Controllers\PaymentController;
 use App\Controllers\PrescriptionController;
 use App\Controllers\PurchaseController;
+use App\Controllers\QuotationController;
 use App\Controllers\ReferenceDoctorController;
 use App\Controllers\ReportController;
 use App\Controllers\RoleController;
@@ -68,6 +69,16 @@ $router->group(['middleware' => ['auth']], function ($router) {
     $router->post('/patients/{id}/documents/{docId}/delete', [PatientController::class, 'deleteDocument'], ['csrf', 'permission:patients.edit']);
     $router->post('/patients/{id}/clinical-chart', [PatientController::class, 'saveClinicalChart'], ['csrf', 'permission:patients.edit']);
     $router->post('/patients/{id}/suggested-plan', [PatientController::class, 'saveSuggestedPlan'], ['csrf', 'permission:patients.edit']);
+    $router->get('/patients/{id}/quotation', [QuotationController::class, 'fromSuggestedPlan'], ['permission:quotations.add']);
+
+    $router->get('/quotations', [QuotationController::class, 'index'], ['permission:quotations.view']);
+    $router->get('/quotations/datatable', [QuotationController::class, 'datatable'], ['permission:quotations.view']);
+    $router->get('/quotations/create', [QuotationController::class, 'create'], ['permission:quotations.add']);
+    $router->post('/quotations', [QuotationController::class, 'store'], ['csrf', 'permission:quotations.add']);
+    $router->get('/quotations/{id}/edit', [QuotationController::class, 'edit'], ['permission:quotations.edit']);
+    $router->post('/quotations/{id}', [QuotationController::class, 'update'], ['csrf', 'permission:quotations.edit']);
+    $router->post('/quotations/{id}/delete', [QuotationController::class, 'destroy'], ['csrf', 'permission:quotations.delete']);
+    $router->get('/quotations/{id}/print', [QuotationController::class, 'print'], ['permission:quotations.print']);
 
     $router->get('/calendar', [CalendarController::class, 'index'], ['permission:appointments.view']);
     $router->get('/calendar/events', [CalendarController::class, 'events'], ['permission:appointments.view']);

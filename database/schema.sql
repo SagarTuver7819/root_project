@@ -17,6 +17,8 @@ DROP TABLE IF EXISTS inventory_transactions;
 DROP TABLE IF EXISTS inventory_items;
 DROP TABLE IF EXISTS inventory_categories;
 DROP TABLE IF EXISTS payments;
+DROP TABLE IF EXISTS quotation_items;
+DROP TABLE IF EXISTS quotations;
 DROP TABLE IF EXISTS bills;
 DROP TABLE IF EXISTS patient_clinical_charts;
 DROP TABLE IF EXISTS patient_suggested_treatments;
@@ -521,6 +523,43 @@ CREATE TABLE patient_suggested_treatments (
   INDEX idx_pst_patient (patient_id),
   FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
   FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE quotations (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  quotation_number VARCHAR(50) NOT NULL UNIQUE,
+  patient_id INT UNSIGNED NOT NULL,
+  doctor_id INT UNSIGNED NULL,
+  quotation_date DATE NOT NULL,
+  gross_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+  discount DECIMAL(12,2) NOT NULL DEFAULT 0,
+  net_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+  status VARCHAR(30) NOT NULL DEFAULT 'draft',
+  notes TEXT NULL,
+  created_by INT UNSIGNED NULL,
+  updated_by INT UNSIGNED NULL,
+  created_at DATETIME NULL,
+  updated_at DATETIME NULL,
+  deleted_at DATETIME NULL,
+  INDEX idx_quot_patient (patient_id),
+  INDEX idx_quot_date (quotation_date),
+  INDEX idx_quot_status (status)
+) ENGINE=InnoDB;
+
+CREATE TABLE quotation_items (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  quotation_id INT UNSIGNED NOT NULL,
+  sort_order INT UNSIGNED NOT NULL DEFAULT 1,
+  description VARCHAR(255) NOT NULL,
+  teeth VARCHAR(255) NULL,
+  doctor_id INT UNSIGNED NULL,
+  unit_price DECIMAL(12,2) NOT NULL DEFAULT 0,
+  amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+  suggested_treatment_id INT UNSIGNED NULL,
+  created_at DATETIME NULL,
+  updated_at DATETIME NULL,
+  INDEX idx_qi_quotation (quotation_id),
+  FOREIGN KEY (quotation_id) REFERENCES quotations(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE bills (

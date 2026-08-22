@@ -490,7 +490,7 @@ class PatientController extends Controller
 
     public function tab(Request $request, string $id, string $tab): void
     {
-        $allowed = ['clinical', 'plan', 'appointments', 'visits', 'treatments', 'prescriptions', 'payments', 'documents', 'history'];
+        $allowed = ['clinical', 'plan', 'appointments', 'estimate', 'treatments', 'prescriptions', 'payments', 'documents', 'history'];
         if (!in_array($tab, $allowed, true)) {
             $this->jsonError('Invalid tab.', null, 404);
         }
@@ -520,11 +520,11 @@ class PatientController extends Controller
                     [(int) $id]
                 ) ?: [];
                 $xrays = Database::fetchAll(
-                    "SELECT * FROM patient_documents WHERE patient_id = ? AND document_type = 'xray' ORDER BY id DESC LIMIT 20",
+                    "SELECT * FROM patient_documents WHERE patient_id = ? AND document_type = 'xray' ORDER BY id DESC LIMIT 50",
                     [(int) $id]
                 );
                 $pictures = Database::fetchAll(
-                    "SELECT * FROM patient_documents WHERE patient_id = ? AND document_type IN ('photo','clinical_picture') ORDER BY id DESC LIMIT 20",
+                    "SELECT * FROM patient_documents WHERE patient_id = ? AND document_type IN ('photo','clinical_picture') ORDER BY id DESC LIMIT 50",
                     [(int) $id]
                 );
                 $id = (int) $id;
@@ -571,16 +571,36 @@ class PatientController extends Controller
                 require dirname(__DIR__, 2) . '/resources/views/modules/patients/tabs/appointments.php';
                 $html = ob_get_clean();
                 break;
-            case 'visits':
-                $rows = Database::fetchAll(
-                    'SELECT v.*, d.name AS doctor_name FROM patient_visits v
-                     INNER JOIN doctors d ON d.id = v.doctor_id
-                     WHERE v.patient_id = ? AND v.deleted_at IS NULL
-                     ORDER BY v.visit_date DESC' . $limitSql,
-                    [(int) $id]
+            case 'estimate':
+                (new QuotationController())->ensureSchemaPublic();
+                $patientId = (int) $id;
+                $quotation = Database::fetch(
+                    "SELECT q.*, d.name AS doctor_name
+                     FROM quotations q
+                     LEFT JOIN doctors d ON d.id = q.doctor_id
+                     WHERE q.patient_id = ? AND q.deleted_at IS NULL
+                     ORDER BY FIELD(q.status, 'draft', 'final', 'cancelled'), q.id DESC
+                     LIMIT 1",
+                    [$patientId]
                 );
+                $items = [];
+                if ($quotation) {
+                    $items = Database::fetchAll(
+                        'SELECT qi.*, d.name AS doctor_name
+                         FROM quotation_items qi
+                         LEFT JOIN doctors d ON d.id = qi.doctor_id
+                         WHERE qi.quotation_id = ?
+                         ORDER BY qi.sort_order ASC, qi.id ASC',
+                        [(int) $quotation['id']]
+                    );
+                }
+                $suggestedItems = Database::fetchAll(
+                    'SELECT description, doctor_id, teeth FROM patient_suggested_treatments WHERE patient_id = ? ORDER BY sort_order ASC, id ASC',
+                    [$patientId]
+                );
+                $id = $patientId;
                 ob_start();
-                require dirname(__DIR__, 2) . '/resources/views/modules/patients/tabs/visits.php';
+                require dirname(__DIR__, 2) . '/resources/views/modules/patients/tabs/estimate.php';
                 $html = ob_get_clean();
                 break;
             case 'treatments':
@@ -650,27 +670,85 @@ class PatientController extends Controller
         }
 
         $data = $this->validate($request, ['document_type' => 'required|max:50']);
-        $file = $request->file('document');
-        if (!$file || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-            $this->jsonError('Please choose a document file to upload.');
+        $files = $this->collectUploadFiles($request);
+        if ($files === []) {
+            $this->jsonError('Please choose at least one file to upload.');
         }
 
-        $path = $this->storePatientDocument($file, (int) $id);
-        if (!$path) {
-            $this->jsonError('Unsupported file type. Allowed: PDF, JPG, PNG, WEBP.');
+        $uploadedIds = [];
+        $failed = 0;
+        $now = date('Y-m-d H:i:s');
+        foreach ($files as $file) {
+            if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+                $failed++;
+                continue;
+            }
+
+            $path = $this->storePatientDocument($file, (int) $id);
+            if (!$path) {
+                $failed++;
+                continue;
+            }
+
+            $description = trim((string) $request->input('description', ''));
+            if ($description === '') {
+                $description = (string) ($file['name'] ?? '');
+            }
+
+            $docId = Database::insert('patient_documents', [
+                'patient_id' => (int) $id,
+                'document_type' => $data['document_type'],
+                'file_path' => $path,
+                'description' => $description,
+                'uploaded_by' => Auth::id(),
+                'created_at' => $now,
+            ]);
+            $uploadedIds[] = $docId;
+            AuditService::log('patients', 'document_upload', $docId, null, ['patient_id' => (int) $id, 'path' => $path]);
         }
 
-        $docId = Database::insert('patient_documents', [
-            'patient_id' => (int) $id,
-            'document_type' => $data['document_type'],
-            'file_path' => $path,
-            'description' => $request->input('description'),
-            'uploaded_by' => Auth::id(),
-            'created_at' => date('Y-m-d H:i:s'),
-        ]);
+        if ($uploadedIds === []) {
+            $this->jsonError('Upload failed. Allowed: PDF, JPG, PNG, WEBP.');
+        }
 
-        AuditService::log('patients', 'document_upload', $docId, null, ['patient_id' => (int) $id, 'path' => $path]);
-        $this->jsonSuccess('Document uploaded successfully.', ['id' => $docId]);
+        $count = count($uploadedIds);
+        $message = $count === 1
+            ? 'Document uploaded successfully.'
+            : ($count . ' files uploaded successfully.');
+        if ($failed > 0) {
+            $message .= ' ' . $failed . ' file(s) skipped.';
+        }
+
+        $this->jsonSuccess($message, ['ids' => $uploadedIds, 'count' => $count]);
+    }
+
+    /** @return list<array<string,mixed>> */
+    private function collectUploadFiles(Request $request): array
+    {
+        $files = [];
+        $multi = $request->file('documents');
+        if (is_array($multi) && isset($multi['name']) && is_array($multi['name'])) {
+            foreach ($multi['name'] as $index => $name) {
+                if (trim((string) $name) === '') {
+                    continue;
+                }
+                $files[] = [
+                    'name' => $name,
+                    'type' => $multi['type'][$index] ?? '',
+                    'tmp_name' => $multi['tmp_name'][$index] ?? '',
+                    'error' => $multi['error'][$index] ?? UPLOAD_ERR_NO_FILE,
+                    'size' => $multi['size'][$index] ?? 0,
+                ];
+            }
+            return $files;
+        }
+
+        $single = $request->file('document');
+        if (is_array($single)) {
+            $files[] = $single;
+        }
+
+        return $files;
     }
 
     public function deleteDocument(Request $request, string $id, string $docId): void
@@ -866,13 +944,17 @@ class PatientController extends Controller
 
         $this->saveToothNotesFromRequest($request, (int) $id);
 
+        if (can('quotations.add') || can('quotations.edit')) {
+            (new QuotationController())->syncDraftForPatient((int) $id);
+        }
+
         $message = 'Suggested treatment plan saved successfully.';
-        $redirect = App::url('patients/' . $id . '?tab=plan');
+        $redirect = App::url('patients/' . $id . '?tab=estimate');
         if ($request->isAjax()) {
             $this->jsonSuccess($message, ['redirect' => $redirect]);
         }
         Session::flash('success', $message);
-        $this->redirect('patients/' . $id . '?tab=plan');
+        $this->redirect('patients/' . $id . '?tab=estimate');
     }
 
     private function saveToothNotesFromRequest(Request $request, int $patientId): void

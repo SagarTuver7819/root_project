@@ -104,15 +104,18 @@
         </div>
         <?php endif; ?>
 
-        <?php if (can('billing.view') || can('payments.view') || can('outstanding.view')): ?>
+        <?php if (can('billing.view') || can('quotations.view') || can('payments.view') || can('outstanding.view')): ?>
         <div class="nav-section">
-            <button class="nav-toggle <?= menu_open(['billing','payments','outstanding']) ?>" type="button" data-target="menuAccounts">
+            <button class="nav-toggle <?= menu_open(['billing','quotations','payments','outstanding']) ?>" type="button" data-target="menuAccounts">
                 <span><i class="bi bi-cash-coin"></i><span class="label">Accounts</span></span>
                 <i class="bi bi-chevron-down chevron"></i>
             </button>
-            <div class="nav-submenu <?= menu_open(['billing','payments','outstanding']) ?>" id="menuAccounts">
+            <div class="nav-submenu <?= menu_open(['billing','quotations','payments','outstanding']) ?>" id="menuAccounts">
                 <?php if (can('billing.view')): ?>
                 <a class="nav-link <?= active_menu('billing') ?>" href="<?= app_url('billing') ?>"><i class="bi bi-receipt"></i><span>Billing</span></a>
+                <?php endif; ?>
+                <?php if (can('quotations.view')): ?>
+                <a class="nav-link <?= active_menu('quotations') ?>" href="<?= app_url('quotations') ?>"><i class="bi bi-file-earmark-text"></i><span>Quotation</span></a>
                 <?php endif; ?>
                 <?php if (can('payments.view')): ?>
                 <a class="nav-link <?= active_menu('payments') ?>" href="<?= app_url('payments') ?>"><i class="bi bi-wallet2"></i><span>Payments</span></a>

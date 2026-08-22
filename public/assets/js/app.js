@@ -74,11 +74,12 @@
 
         $(document).on('click', '.btn-delete', function (e) {
             e.preventDefault();
-            const url = $(this).data('url');
-            const tableSelector = $(this).data('table') || 'table.dataTable';
+            const $btn = $(this);
+            const url = $btn.data('url');
+            const tableSelector = $btn.data('table') || 'table.dataTable';
             Swal.fire({
                 title: 'Are you sure?',
-                text: $(this).data('message') || 'Do you want to delete this record?',
+                text: $btn.data('message') || 'Do you want to delete this record?',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#dc3545',
@@ -93,6 +94,14 @@
                     headers: csrfHeaders(),
                     success: function (res) {
                         toastr.success(res.message || 'Deleted successfully.');
+                        const reloadTab = $btn.data('reload-tab');
+                        if (reloadTab) {
+                            const tabBtn = document.querySelector('#patientTabs .nav-link[data-tab="' + reloadTab + '"]');
+                            if (tabBtn) {
+                                tabBtn.click();
+                                return;
+                            }
+                        }
                         if ($.fn.DataTable && $.fn.DataTable.isDataTable(tableSelector)) {
                             $(tableSelector).DataTable().ajax.reload(null, false);
                         } else {
@@ -266,18 +275,20 @@
                 toastr.error('Upload URL missing. Please refresh the page.');
                 return;
             }
-            if (!fileInput || !fileInput.files || !fileInput.files[0]) {
-                toastr.warning('Please choose a file first.');
+            if (!fileInput || !fileInput.files || !fileInput.files.length) {
+                toastr.warning('Please choose at least one file first.');
                 return;
             }
 
             const fd = new FormData();
             fd.append('_token', window.CSRF_TOKEN || $('meta[name="csrf-token"]').attr('content') || '');
             fd.append('document_type', type);
-            fd.append('document', fileInput.files[0]);
-            fd.append('description', fileInput.files[0].name);
+            Array.from(fileInput.files).forEach(function (file) {
+                fd.append('documents[]', file);
+            });
 
-            $btn.prop('disabled', true);
+            const originalLabel = $btn.text();
+            $btn.prop('disabled', true).text('Uploading...');
             $.ajax({
                 url: uploadUrl,
                 method: 'POST',
@@ -292,6 +303,13 @@
                         return;
                     }
                     toastr.success((res && res.message) || 'Uploaded.');
+                    fileInput.value = '';
+                    const hint = $form.find('.clinical-doc-selected[data-type="' + type + '"]').get(0);
+                    if (hint) {
+                        hint.textContent = type === 'xray'
+                            ? 'Multiple files select kari shakay (JPG, PNG, WEBP, PDF).'
+                            : 'Multiple photos select kari shakay (JPG, PNG, WEBP).';
+                    }
                     const active = document.querySelector('#patientTabs .nav-link.active');
                     if (active) {
                         active.click();
@@ -304,7 +322,7 @@
                     toastr.error(res.message || 'Upload failed.');
                 },
                 complete: function () {
-                    $btn.prop('disabled', false);
+                    $btn.prop('disabled', false).text(originalLabel);
                 }
             });
         });

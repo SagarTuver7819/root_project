@@ -116,6 +116,57 @@ function roots_live_update(): array
         $log[] = 'OK patient_suggested_treatments.teeth';
     }
 
+    if (!$tableExists('quotations')) {
+        Database::connection()->exec(
+            "CREATE TABLE IF NOT EXISTS quotations (
+              id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+              quotation_number VARCHAR(50) NOT NULL UNIQUE,
+              patient_id INT UNSIGNED NOT NULL,
+              doctor_id INT UNSIGNED NULL,
+              quotation_date DATE NOT NULL,
+              gross_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+              discount DECIMAL(12,2) NOT NULL DEFAULT 0,
+              net_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+              status VARCHAR(30) NOT NULL DEFAULT 'draft',
+              notes TEXT NULL,
+              created_by INT UNSIGNED NULL,
+              updated_by INT UNSIGNED NULL,
+              created_at DATETIME NULL,
+              updated_at DATETIME NULL,
+              deleted_at DATETIME NULL,
+              INDEX idx_quot_patient (patient_id),
+              INDEX idx_quot_date (quotation_date),
+              INDEX idx_quot_status (status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+        $log[] = 'Created quotations';
+    } else {
+        $log[] = 'OK quotations table';
+    }
+
+    if (!$tableExists('quotation_items')) {
+        Database::connection()->exec(
+            "CREATE TABLE IF NOT EXISTS quotation_items (
+              id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+              quotation_id INT UNSIGNED NOT NULL,
+              sort_order INT UNSIGNED NOT NULL DEFAULT 1,
+              description VARCHAR(255) NOT NULL,
+              teeth VARCHAR(255) NULL,
+              doctor_id INT UNSIGNED NULL,
+              unit_price DECIMAL(12,2) NOT NULL DEFAULT 0,
+              amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+              suggested_treatment_id INT UNSIGNED NULL,
+              created_at DATETIME NULL,
+              updated_at DATETIME NULL,
+              INDEX idx_qi_quotation (quotation_id),
+              FOREIGN KEY (quotation_id) REFERENCES quotations(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+        $log[] = 'Created quotation_items';
+    } else {
+        $log[] = 'OK quotation_items table';
+    }
+
     // --- Role permissions ---
     $now = date('Y-m-d H:i:s');
     $roles = ['super_admin', 'admin', 'receptionist', 'doctor', 'accounts', 'inventory'];
@@ -170,6 +221,7 @@ function roots_live_update(): array
             'appointments.view', 'appointments.add', 'appointments.edit', 'appointments.status_change',
             'queue.view', 'queue.status_change',
             'patients.view', 'patients.add', 'patients.edit', 'patients.print',
+            'quotations.view', 'quotations.add', 'quotations.edit', 'quotations.print',
             'billing.view', 'billing.add', 'billing.edit', 'billing.print',
             'payments.view', 'payments.add', 'payments.print',
             'outstanding.view',
@@ -188,6 +240,7 @@ function roots_live_update(): array
             'medicine_masters.view',
             'doctors.view',
             'billing.view', 'billing.print',
+            'quotations.view', 'quotations.print',
             'payments.view',
         ],
         'accounts' => [
@@ -195,6 +248,7 @@ function roots_live_update(): array
             'patients.view', 'patients.print',
             'doctors.view', 'treatment_masters.view',
             'billing.view', 'billing.add', 'billing.edit', 'billing.print', 'billing.approve',
+            'quotations.view', 'quotations.add', 'quotations.edit', 'quotations.print',
             'payments.view', 'payments.add', 'payments.print', 'payments.edit',
             'outstanding.view', 'outstanding.export',
             'reports.view', 'reports.export', 'reports.print',
