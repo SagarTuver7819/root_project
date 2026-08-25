@@ -1,11 +1,20 @@
-# XAMPP: send project-root URLs to /public (correct front controller)
+# Shared hosting: domain document root = project folder (not /public).
+# Works for:
+#   Live:  https://roots.oceanhub.co.in/        → /public/...
+#   Local: http://localhost/roots_project/     → /roots_project/public/...
+#
+# Absolute Location (leading /) — relative "public/" causes URL loops.
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteBase /roots_project/
 
-    # Avoid loop
-    RewriteRule ^public(/|$) - [L]
+    # Already under public/ — do not redirect again
+    RewriteRule ^public(?:/|$) - [L]
 
-    # External redirect so browser URL becomes .../public/...
-    RewriteRule ^(.*)$ public/$1 [R=302,L]
+    # Local XAMPP folder install
+    RewriteCond %{REQUEST_URI} ^/roots_project/
+    RewriteRule ^(.*)$ /roots_project/public/$1 [R=302,L]
+
+    # Live subdomain (document root = this project folder)
+    RewriteRule ^(.*)$ /public/$1 [R=302,L]
 </IfModule>

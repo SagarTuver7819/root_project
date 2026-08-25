@@ -45,11 +45,45 @@ function detect_app_url(): string
     $script = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
     $base = rtrim(str_replace('\\', '/', dirname($script)), '/');
 
+    // Never treat project-root index.php as the app base
+    if (str_ends_with($base, '/roots_project') || preg_match('#/roots_project$#', $base)) {
+        $base .= '/public';
+    }
+
     if ($base === '' || $base === '.' || $base === '/') {
         return $scheme . '://' . $host;
     }
 
     return $scheme . '://' . $host . $base;
+}
+
+/**
+ * Normalize APP_URL so redirects never become relative paths like
+ * "roots_project/public/..." (those cause infinite URL loops).
+ */
+function normalize_app_url(string $url): string
+{
+    $url = trim($url);
+    if ($url === '') {
+        return detect_app_url();
+    }
+
+    $url = rtrim($url, '/');
+
+    // Relative / incomplete APP_URL → make absolute from current request
+    if (!preg_match('#^https?://#i', $url)) {
+        if (PHP_SAPI === 'cli') {
+            return 'http://localhost/' . ltrim($url, '/');
+        }
+        $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || ((string) ($_SERVER['SERVER_PORT'] ?? '') === '443')
+            || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https');
+        $scheme = $https ? 'https' : 'http';
+        $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
+        return $scheme . '://' . $host . '/' . ltrim($url, '/');
+    }
+
+    return $url;
 }
 
 function app_url(string $path = ''): string

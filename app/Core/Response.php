@@ -34,6 +34,11 @@ class Response
 
     public static function redirect(string $url): never
     {
+        $url = trim($url);
+        // Relative Location headers cause path stacking loops in the browser.
+        if ($url !== '' && !preg_match('#^(https?:)?//#i', $url) && !str_starts_with($url, '/')) {
+            $url = App::url(ltrim($url, '/'));
+        }
         header('Location: ' . $url);
         exit;
     }

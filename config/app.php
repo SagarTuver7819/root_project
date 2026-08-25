@@ -9,7 +9,10 @@ $appUrl = env('APP_URL');
 if ($appUrl === null || $appUrl === '') {
     $appUrl = $detectedUrl;
 }
-$appUrl = rtrim((string) $appUrl, '/');
+$appUrl = function_exists('normalize_app_url')
+    ? normalize_app_url((string) $appUrl)
+    : rtrim((string) $appUrl, '/');
+$appUrl = rtrim($appUrl, '/');
 
 // Derive public path prefix for upload URLs (works for /public subdirectory or subdomain root)
 $uploadUrl = env('UPLOAD_URL');
