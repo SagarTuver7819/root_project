@@ -76,6 +76,7 @@ $sets = [
         'prescriptions.view', 'prescriptions.add', 'prescriptions.edit', 'prescriptions.print',
         'treatment_masters.view',
         'medicine_masters.view',
+        'lab_masters.view',
         'doctors.view',
         'billing.view', 'billing.print',
         'payments.view',

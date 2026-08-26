@@ -167,6 +167,23 @@ function roots_live_update(): array
         $log[] = 'OK quotation_items table';
     }
 
+    if (!$tableExists('lab_masters')) {
+        Database::connection()->exec(
+            "CREATE TABLE IF NOT EXISTS lab_masters (
+              id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+              name VARCHAR(150) NOT NULL,
+              is_active TINYINT(1) NOT NULL DEFAULT 1,
+              created_at DATETIME NULL,
+              updated_at DATETIME NULL,
+              deleted_at DATETIME NULL,
+              INDEX idx_lab_name (name)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+        $log[] = 'Created lab_masters';
+    } else {
+        $log[] = 'OK lab_masters table';
+    }
+
     // --- Role permissions ---
     $now = date('Y-m-d H:i:s');
     $roles = ['super_admin', 'admin', 'receptionist', 'doctor', 'accounts', 'inventory'];
@@ -238,6 +255,7 @@ function roots_live_update(): array
             'prescriptions.view', 'prescriptions.add', 'prescriptions.edit', 'prescriptions.print',
             'treatment_masters.view',
             'medicine_masters.view',
+            'lab_masters.view',
             'doctors.view',
             'billing.view', 'billing.print',
             'quotations.view', 'quotations.print',

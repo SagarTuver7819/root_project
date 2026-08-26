@@ -19,6 +19,7 @@ return [
     'reference_doctors' => ['view', 'add', 'edit', 'delete'],
     'treatment_masters' => ['view', 'add', 'edit', 'delete'],
     'medicine_masters' => ['view', 'add', 'edit', 'delete'],
+    'lab_masters' => ['view', 'add', 'edit', 'delete'],
     'appointment_statuses' => ['view', 'add', 'edit', 'delete'],
     'billing' => ['view', 'add', 'edit', 'delete', 'print', 'approve'],
     'quotations' => ['view', 'add', 'edit', 'delete', 'print'],

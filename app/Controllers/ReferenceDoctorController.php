@@ -43,7 +43,39 @@ class ReferenceDoctorController extends \App\Core\Controller
         $payload['ref_code'] = $this->nextCode('reference_doctors', 'ref_code', 'REF');
         $id = $this->insertWithTimestamps('reference_doctors', $payload);
         $this->audit('reference_doctors', 'create', $id, null, $payload);
-        $this->finish($request, 'Reference doctor created successfully.', 'reference-doctors', ['id' => $id]);
+        $this->finish($request, 'Reference doctor created successfully.', 'reference-doctors', [
+            'id' => $id,
+            'name' => $payload['name'],
+        ]);
+    }
+
+    /** Quick add from patient form (Front Desk). Does not leave the page. */
+    public function quickStore(Request $request): void
+    {
+        if (!can('patients.edit') && !can('patients.add') && !can('reference_doctors.add')) {
+            $this->jsonError('You do not have permission to add reference doctors.', null, 403);
+        }
+
+        $data = $this->validate($request, ['name' => 'required|max:150']);
+        $name = trim((string) $data['name']);
+        if ($name === '') {
+            $this->jsonError('Reference doctor name is required.');
+        }
+
+        $payload = [
+            'ref_code' => $this->nextCode('reference_doctors', 'ref_code', 'REF'),
+            'name' => $name,
+            'clinic_hospital' => trim((string) $request->input('clinic_hospital', '')) ?: null,
+            'mobile' => trim((string) $request->input('mobile', '')) ?: null,
+            'specialization' => trim((string) $request->input('specialization', '')) ?: null,
+            'is_active' => 1,
+        ];
+        $id = $this->insertWithTimestamps('reference_doctors', $payload);
+        $this->audit('reference_doctors', 'quick_create', $id, null, $payload);
+        $this->jsonSuccess('Reference doctor added.', [
+            'id' => $id,
+            'name' => $name,
+        ]);
     }
 
     public function edit(Request $request, string $id): void

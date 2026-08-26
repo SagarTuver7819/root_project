@@ -105,7 +105,7 @@ $doctorPerms = [
     'treatment_sessions.view', 'treatment_sessions.add', 'treatment_sessions.edit',
     'prescriptions.view', 'prescriptions.add', 'prescriptions.edit', 'prescriptions.print',
     'follow_ups.view', 'follow_ups.add', 'follow_ups.edit', 'follow_ups.status_change',
-    'medicine_masters.view', 'treatment_masters.view',
+    'medicine_masters.view', 'treatment_masters.view', 'lab_masters.view',
     'doctors.view',
     'billing.view', 'billing.print',
     'payments.view',

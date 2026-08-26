@@ -285,6 +285,17 @@ class PatientController extends Controller
             'gender' => 'in:male,female,other',
         ]);
 
+        $mobile = preg_replace('/\D+/', '', (string) ($data['mobile'] ?? '')) ?? '';
+        if (!preg_match('/^\d{10,11}$/', $mobile)) {
+            if ($request->isAjax()) {
+                $this->jsonError('Mobile number must be 10 or 11 digits.', ['mobile' => ['Mobile number must be 10 or 11 digits.']]);
+            }
+            Session::flash('error', 'Mobile number must be 10 or 11 digits.');
+            Session::flash('old', $request->all());
+            $this->redirect('patients/create');
+        }
+        $data['mobile'] = $mobile;
+
         $code = trim((string) $request->input('patient_code', ''));
         if ($code === '') {
             $code = $this->nextPatientCode();
@@ -401,6 +412,17 @@ class PatientController extends Controller
             'name' => 'required|max:150',
             'mobile' => 'required|max:20',
         ]);
+
+        $mobile = preg_replace('/\D+/', '', (string) ($data['mobile'] ?? '')) ?? '';
+        if (!preg_match('/^\d{10,11}$/', $mobile)) {
+            if ($request->isAjax()) {
+                $this->jsonError('Mobile number must be 10 or 11 digits.', ['mobile' => ['Mobile number must be 10 or 11 digits.']]);
+            }
+            Session::flash('error', 'Mobile number must be 10 or 11 digits.');
+            Session::flash('old', $request->all());
+            $this->redirect('patients/' . $id . '/edit');
+        }
+        $data['mobile'] = $mobile;
 
         $code = trim((string) $request->input('patient_code', ''));
         if ($code === '') {
@@ -553,6 +575,9 @@ class PatientController extends Controller
                         $toothNotes = $decoded;
                     }
                 }
+                $treatmentSuggestions = Database::fetchAll(
+                    'SELECT name FROM treatment_masters WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name ASC LIMIT 40'
+                );
                 $id = (int) $id;
                 ob_start();
                 require dirname(__DIR__, 2) . '/resources/views/modules/patients/tabs/plan.php';

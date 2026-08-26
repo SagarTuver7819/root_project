@@ -27,6 +27,7 @@ DROP TABLE IF EXISTS follow_ups;
 DROP TABLE IF EXISTS prescription_items;
 DROP TABLE IF EXISTS prescriptions;
 DROP TABLE IF EXISTS medicine_masters;
+DROP TABLE IF EXISTS lab_masters;
 DROP TABLE IF EXISTS treatment_sessions;
 DROP TABLE IF EXISTS patient_treatment_plans;
 DROP TABLE IF EXISTS treatment_masters;
@@ -411,6 +412,16 @@ CREATE TABLE medicine_masters (
   created_at DATETIME NULL,
   updated_at DATETIME NULL,
   deleted_at DATETIME NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE lab_masters (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME NULL,
+  updated_at DATETIME NULL,
+  deleted_at DATETIME NULL,
+  INDEX idx_lab_name (name)
 ) ENGINE=InnoDB;
 
 CREATE TABLE prescriptions (

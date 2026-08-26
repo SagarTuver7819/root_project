@@ -3,6 +3,8 @@ $patientId = (int) ($id ?? 0);
 $canEdit = can('patients.edit');
 $doctors = $doctors ?? [];
 $savedItems = $savedItems ?? [];
+$toothNotes = $toothNotes ?? [];
+$treatmentSuggestions = $treatmentSuggestions ?? [];
 
 $minRows = 5;
 $rows = $savedItems;
@@ -22,6 +24,13 @@ foreach ($savedItems as $item) {
         }
     }
 }
+
+$toothLabel = static function (string $code): string {
+    $q = ['UR' => 'Upper Right', 'UL' => 'Upper Left', 'LR' => 'Lower Right', 'LL' => 'Lower Left'];
+    $prefix = substr($code, 0, 2);
+    $num = substr($code, 2);
+    return ($q[$prefix] ?? $prefix) . ' ' . $num;
+};
 
 $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $selectedTeeth): void {
     foreach ($codes as $code) {
@@ -58,12 +67,12 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
             </div>
             <div class="palmer-quad-labels lower"><span>Lower Right</span><span class="text-end">Lower Left</span></div>
         </div>
-        <p class="palmer-hint mb-0">Tooth par click karo — note popup khulse. Treatment line select kari ne save karo.</p>
+        <p class="palmer-hint mb-0">Har tooth click = alag treatment line. Note popup ma pehla notes recommendation tarike aavse.</p>
     </div>
 
     <div class="suggested-plan-head">
         <h3 class="h5 mb-1">Suggested Treatment Plan</h3>
-        <p class="text-muted small mb-0">Pehli line compulsory che. Default 5 line, pachhi sequence ma add kari shakay. Doctor select kari ne calendar ma appointment book kari shakay.</p>
+        <p class="text-muted small mb-0">Tooth-wise hierarchy — ek tooth, ek line. Pehli line compulsory. Doctor select kari ne calendar book kari shakay.</p>
     </div>
 
     <div id="suggestedPlanRows" class="suggested-plan-list">
@@ -75,12 +84,16 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
             $docId = (string) ($row['doctor_id'] ?? '');
             $teeth = trim((string) ($row['teeth'] ?? ''));
             $toothList = $teeth === '' ? [] : array_values(array_filter(array_map('trim', explode(',', $teeth))));
+            $primaryTooth = $toothList[0] ?? '';
             ?>
-            <div class="suggested-plan-row<?= $index === 0 ? ' is-active' : '' ?>" data-index="<?= (int) $index ?>">
+            <div class="suggested-plan-row<?= $index === 0 ? ' is-active' : '' ?>" data-index="<?= (int) $index ?>" data-tooth="<?= e($primaryTooth) ?>">
                 <div class="suggested-plan-num"><?= (int) $n ?></div>
                 <div class="suggested-plan-fields">
                     <input type="hidden" name="items[<?= (int) $index ?>][id]" value="<?= e($rowId) ?>">
                     <input type="hidden" class="suggested-plan-teeth-input" name="items[<?= (int) $index ?>][teeth]" value="<?= e($teeth) ?>">
+                    <div class="suggested-plan-tooth-label<?= $primaryTooth === '' ? ' d-none' : '' ?>">
+                        <i class="bi bi-tooth me-1"></i><span class="tooth-label-text"><?= $primaryTooth !== '' ? e($toothLabel($primaryTooth)) : '' ?></span>
+                    </div>
                     <input
                         class="form-control suggested-plan-desc"
                         type="text"
@@ -133,11 +146,14 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
 
 <?php if ($canEdit): ?>
 <template id="suggestedPlanRowTpl">
-    <div class="suggested-plan-row" data-index="__INDEX__">
+    <div class="suggested-plan-row" data-index="__INDEX__" data-tooth="">
         <div class="suggested-plan-num">__NUM__</div>
         <div class="suggested-plan-fields">
             <input type="hidden" name="items[__INDEX__][id]" value="">
             <input type="hidden" class="suggested-plan-teeth-input" name="items[__INDEX__][teeth]" value="">
+            <div class="suggested-plan-tooth-label d-none">
+                <i class="bi bi-tooth me-1"></i><span class="tooth-label-text"></span>
+            </div>
             <input class="form-control suggested-plan-desc" type="text" name="items[__INDEX__][description]" placeholder="Treatment __NUM__">
             <div class="suggested-plan-teeth"></div>
             <div class="suggested-plan-actions">
@@ -167,7 +183,10 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
             </div>
             <div class="modal-body">
                 <label class="form-label">Clinical / treatment note</label>
-                <textarea class="form-control" id="toothNoteInput" rows="4" placeholder="Write note for this tooth..."></textarea>
+                <div class="tooth-note-autocomplete position-relative">
+                    <textarea class="form-control" id="toothNoteInput" rows="4" placeholder="Write note for this tooth..." autocomplete="off"></textarea>
+                    <div id="toothNoteSuggestDropdown" class="tooth-note-suggest-dropdown d-none" role="listbox"></div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-danger" id="toothNoteClear">Clear</button>
@@ -189,12 +208,16 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
   const saveUrl = form.getAttribute('action');
   const patientId = <?= json_encode((string) $patientId) ?>;
   const patientText = <?= json_encode(trim(($patient['patient_code'] ?? '') . ' - ' . ($patient['name'] ?? '') . ' (' . ($patient['mobile'] ?? '') . ')')) ?>;
+  const masterSuggestions = <?= json_encode(array_values(array_filter(array_map(static fn ($r) => trim((string) ($r['name'] ?? '')), $treatmentSuggestions)))) ?>;
   const minRows = 5;
   let activeTooth = '';
   const notesField = document.getElementById('suggestedPlanToothNotes');
   const input = document.getElementById('toothNoteInput');
+  const suggestDropdown = document.getElementById('toothNoteSuggestDropdown');
   const modalEl = document.getElementById('toothNoteModal');
   const modal = (modalEl && window.bootstrap) ? new bootstrap.Modal(modalEl) : null;
+  const quad = { UR: 'Upper Right', UL: 'Upper Left', LR: 'Lower Right', LL: 'Lower Left' };
+  let suggestActiveIndex = -1;
 
   function parseTeethNotes() {
     try {
@@ -205,30 +228,54 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
     }
   }
 
-  function activeRow() {
-    return list.querySelector('.suggested-plan-row.is-active') || list.querySelector('.suggested-plan-row');
+  function toothTitle(code) {
+    const prefix = (code || '').slice(0, 2);
+    const num = (code || '').slice(2);
+    return (quad[prefix] ? quad[prefix] + ' ' : '') + num;
   }
 
   function parseTeeth(value) {
     return String(value || '').split(',').map(function (v) { return v.trim(); }).filter(Boolean);
   }
 
+  function escapeHtml(text) {
+    return String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function updateRowToothMeta(row) {
+    const teeth = parseTeeth(row.querySelector('.suggested-plan-teeth-input')?.value || '');
+    const primary = teeth[0] || '';
+    row.dataset.tooth = primary;
+    const labelWrap = row.querySelector('.suggested-plan-tooth-label');
+    const labelText = row.querySelector('.tooth-label-text');
+    if (labelWrap && labelText) {
+      if (primary) {
+        labelText.textContent = toothTitle(primary);
+        labelWrap.classList.remove('d-none');
+      } else {
+        labelText.textContent = '';
+        labelWrap.classList.add('d-none');
+      }
+    }
+  }
+
   function renderChips(row) {
-    const input = row.querySelector('.suggested-plan-teeth-input');
+    const teethInput = row.querySelector('.suggested-plan-teeth-input');
     const box = row.querySelector('.suggested-plan-teeth');
-    if (!input || !box) return;
-    const teeth = parseTeeth(input.value);
+    if (!teethInput || !box) return;
+    const teeth = parseTeeth(teethInput.value);
     const notes = parseTeethNotes();
     box.innerHTML = teeth.map(function (t) {
-      const note = notes[t] ? String(notes[t]).replace(/</g, '&lt;').replace(/"/g, '&quot;') : '';
-      return '<span class="tooth-chip"' + (note ? ' title="' + note + '"' : '') + '>' + t.replace(/</g, '&lt;') + '</span>';
+      const note = notes[t] ? escapeHtml(notes[t]) : '';
+      return '<span class="tooth-chip"' + (note ? ' title="' + note + '"' : '') + '>' + escapeHtml(t) + '</span>';
     }).join('');
+    updateRowToothMeta(row);
   }
 
   function paintChart() {
     const selected = {};
-    list.querySelectorAll('.suggested-plan-teeth-input').forEach(function (input) {
-      parseTeeth(input.value).forEach(function (t) { selected[t] = true; });
+    list.querySelectorAll('.suggested-plan-teeth-input').forEach(function (teethInput) {
+      parseTeeth(teethInput.value).forEach(function (t) { selected[t] = true; });
     });
     form.querySelectorAll('.palmer-tooth').forEach(function (btn) {
       btn.classList.toggle('is-selected', !!selected[btn.dataset.tooth]);
@@ -252,75 +299,238 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
       if (remove) {
         remove.classList.toggle('d-none', n <= minRows);
       }
+      updateRowToothMeta(row);
     });
+  }
+
+  function ensureExtraRow() {
+    if (!tpl) return null;
+    const html = tpl.innerHTML
+      .replace(/__INDEX__/g, String(list.children.length))
+      .replace(/__NUM__/g, String(list.children.length + 1));
+    list.insertAdjacentHTML('beforeend', html);
+    reindex();
+    return list.querySelector('.suggested-plan-row:last-child');
+  }
+
+  function findRowForTooth(code) {
+    const rows = Array.from(list.querySelectorAll('.suggested-plan-row'));
+    // Exact single-tooth match first
+    for (let i = 0; i < rows.length; i++) {
+      const teeth = parseTeeth(rows[i].querySelector('.suggested-plan-teeth-input')?.value || '');
+      if (teeth.length === 1 && teeth[0] === code) return rows[i];
+    }
+    // Any row already linked to this tooth
+    for (let i = 0; i < rows.length; i++) {
+      const teeth = parseTeeth(rows[i].querySelector('.suggested-plan-teeth-input')?.value || '');
+      if (teeth.indexOf(code) >= 0) return rows[i];
+    }
+    // Empty row
+    for (let i = 0; i < rows.length; i++) {
+      const teeth = parseTeeth(rows[i].querySelector('.suggested-plan-teeth-input')?.value || '');
+      const desc = (rows[i].querySelector('.suggested-plan-desc')?.value || '').trim();
+      if (teeth.length === 0 && desc === '') return rows[i];
+    }
+    return ensureExtraRow();
+  }
+
+  function detachToothFromOtherRows(code, keepRow) {
+    list.querySelectorAll('.suggested-plan-row').forEach(function (row) {
+      if (row === keepRow) return;
+      const teethInput = row.querySelector('.suggested-plan-teeth-input');
+      if (!teethInput) return;
+      const teeth = parseTeeth(teethInput.value).filter(function (t) { return t !== code; });
+      teethInput.value = teeth.join(',');
+      renderChips(row);
+    });
+  }
+
+  function setActiveRow(row) {
+    list.querySelectorAll('.suggested-plan-row').forEach(function (r) { r.classList.remove('is-active'); });
+    if (row) row.classList.add('is-active');
+  }
+
+  function collectOldSuggestions() {
+    const notes = parseTeethNotes();
+    const items = [];
+    const seen = {};
+
+    function push(value) {
+      const text = String(value || '').trim();
+      const key = text.toLowerCase();
+      if (!text || seen[key]) return;
+      seen[key] = true;
+      items.push(text);
+    }
+
+    Object.keys(notes).forEach(function (t) {
+      push(notes[t]);
+    });
+
+    list.querySelectorAll('.suggested-plan-desc').forEach(function (el) {
+      push(el.value);
+    });
+
+    (masterSuggestions || []).forEach(function (name) {
+      push(name);
+    });
+
+    return items;
+  }
+
+  function hideSuggestDropdown() {
+    if (!suggestDropdown) return;
+    suggestDropdown.classList.add('d-none');
+    suggestDropdown.innerHTML = '';
+    suggestActiveIndex = -1;
+  }
+
+  function showSuggestDropdown(query) {
+    if (!suggestDropdown || !input) return;
+    const q = String(query || '').trim().toLowerCase();
+    if (q.length < 1) {
+      hideSuggestDropdown();
+      return;
+    }
+
+    const matches = collectOldSuggestions().filter(function (item) {
+      return item.toLowerCase().indexOf(q) >= 0;
+    }).slice(0, 8);
+
+    if (!matches.length) {
+      hideSuggestDropdown();
+      return;
+    }
+
+    suggestActiveIndex = -1;
+    suggestDropdown.innerHTML = matches.map(function (item, idx) {
+      return '<button type="button" class="tooth-note-suggest-item" role="option" data-index="' + idx + '" data-value="' + escapeHtml(item) + '">'
+        + escapeHtml(item)
+        + '</button>';
+    }).join('');
+    suggestDropdown.classList.remove('d-none');
+  }
+
+  function applySuggestion(value) {
+    if (!input) return;
+    input.value = value;
+    hideSuggestDropdown();
+    input.focus();
+  }
+
+  function setActiveSuggestion(index) {
+    if (!suggestDropdown) return;
+    const items = suggestDropdown.querySelectorAll('.tooth-note-suggest-item');
+    if (!items.length) return;
+    suggestActiveIndex = Math.max(0, Math.min(index, items.length - 1));
+    items.forEach(function (el, i) {
+      el.classList.toggle('is-active', i === suggestActiveIndex);
+    });
+    items[suggestActiveIndex]?.scrollIntoView({ block: 'nearest' });
   }
 
   list.addEventListener('click', function (e) {
     const row = e.target.closest('.suggested-plan-row');
-    if (row) {
-      list.querySelectorAll('.suggested-plan-row').forEach(function (r) { r.classList.remove('is-active'); });
-      row.classList.add('is-active');
+    if (row && !e.target.closest('.suggested-plan-remove, .suggested-plan-book')) {
+      setActiveRow(row);
     }
   });
 
   form.querySelectorAll('.palmer-tooth').forEach(function (btn) {
     btn.addEventListener('click', function () {
-      const row = activeRow();
-      if (!row) return;
-      list.querySelectorAll('.suggested-plan-row').forEach(function (r) { r.classList.remove('is-active'); });
-      row.classList.add('is-active');
       activeTooth = this.dataset.tooth;
-      const q = { UR: 'Upper Right', UL: 'Upper Left', LR: 'Lower Right', LL: 'Lower Left' };
-      const prefix = (activeTooth || '').slice(0, 2);
-      const num = (activeTooth || '').slice(2);
-      document.getElementById('toothNoteIdLabel').textContent = (q[prefix] ? q[prefix] + ' ' : '') + num;
+      const row = findRowForTooth(activeTooth) || list.querySelector('.suggested-plan-row');
+      if (row) setActiveRow(row);
+      document.getElementById('toothNoteIdLabel').textContent = toothTitle(activeTooth);
       const notes = parseTeethNotes();
-      const desc = (row.querySelector('.suggested-plan-desc')?.value || '').trim();
-      input.value = notes[activeTooth] || (parseTeeth(row.querySelector('.suggested-plan-teeth-input').value).indexOf(activeTooth) >= 0 ? desc : '');
+      const existing = notes[activeTooth] || (row?.querySelector('.suggested-plan-desc')?.value || '').trim();
+      input.value = notes[activeTooth] || '';
+      if (!input.value && existing && parseTeeth(row?.querySelector('.suggested-plan-teeth-input')?.value || '').indexOf(activeTooth) >= 0) {
+        input.value = existing;
+      }
+      hideSuggestDropdown();
       modal && modal.show();
       setTimeout(function () { input.focus(); }, 200);
     });
   });
 
+  input?.addEventListener('input', function () {
+    showSuggestDropdown(this.value);
+  });
+
+  input?.addEventListener('keydown', function (e) {
+    if (!suggestDropdown || suggestDropdown.classList.contains('d-none')) return;
+    const items = suggestDropdown.querySelectorAll('.tooth-note-suggest-item');
+    if (!items.length) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveSuggestion(suggestActiveIndex + 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveSuggestion(suggestActiveIndex <= 0 ? items.length - 1 : suggestActiveIndex - 1);
+    } else if (e.key === 'Enter' && suggestActiveIndex >= 0) {
+      e.preventDefault();
+      const selected = items[suggestActiveIndex];
+      if (selected) applySuggestion(selected.getAttribute('data-value') || '');
+    } else if (e.key === 'Escape') {
+      hideSuggestDropdown();
+    }
+  });
+
+  suggestDropdown?.addEventListener('mousedown', function (e) {
+    const item = e.target.closest('.tooth-note-suggest-item');
+    if (!item) return;
+    e.preventDefault();
+    applySuggestion(item.getAttribute('data-value') || '');
+  });
+
+  input?.addEventListener('blur', function () {
+    setTimeout(hideSuggestDropdown, 150);
+  });
+
+  modalEl?.addEventListener('hidden.bs.modal', hideSuggestDropdown);
+
   document.getElementById('toothNoteSave')?.addEventListener('click', function () {
     if (!activeTooth) return;
-    const row = activeRow();
-    if (!row) return;
     const val = input.value.trim();
     const notes = parseTeethNotes();
+    let row = findRowForTooth(activeTooth);
+    if (!row) return;
+
+    detachToothFromOtherRows(activeTooth, row);
     const hiddenTeeth = row.querySelector('.suggested-plan-teeth-input');
     const desc = row.querySelector('.suggested-plan-desc');
-    const teeth = parseTeeth(hiddenTeeth.value);
 
     if (val) {
       notes[activeTooth] = val;
-      if (teeth.indexOf(activeTooth) < 0) teeth.push(activeTooth);
-      if (desc && !desc.value.trim()) desc.value = val;
+      hiddenTeeth.value = activeTooth;
+      if (desc) desc.value = val;
     } else {
       delete notes[activeTooth];
-      const idx = teeth.indexOf(activeTooth);
-      if (idx >= 0) teeth.splice(idx, 1);
+      hiddenTeeth.value = '';
     }
 
-    hiddenTeeth.value = teeth.join(',');
     notesField.value = JSON.stringify(notes);
+    setActiveRow(row);
     renderChips(row);
     paintChart();
+    hideSuggestDropdown();
     modal && modal.hide();
     if (window.toastr) {
-      toastr.success(val ? 'Tooth note saved. Click Save Treatment Plan to keep it.' : 'Tooth note cleared.');
+      toastr.success(val
+        ? ('Saved for ' + toothTitle(activeTooth) + ' as separate treatment line.')
+        : 'Tooth note cleared.');
     }
   });
 
   document.getElementById('toothNoteClear')?.addEventListener('click', function () {
     input.value = '';
+    hideSuggestDropdown();
   });
 
   document.getElementById('addSuggestedPlanRow')?.addEventListener('click', function () {
-    if (!tpl) return;
-    const html = tpl.innerHTML.replace(/__INDEX__/g, String(list.children.length)).replace(/__NUM__/g, String(list.children.length + 1));
-    list.insertAdjacentHTML('beforeend', html);
-    reindex();
+    ensureExtraRow();
   });
 
   list.addEventListener('click', function (e) {

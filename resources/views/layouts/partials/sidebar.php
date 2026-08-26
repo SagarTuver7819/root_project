@@ -78,13 +78,13 @@
         </div>
         <?php endif; ?>
 
-        <?php if (can('doctors.view') || can('reference_doctors.view') || can('treatment_masters.view') || can('medicine_masters.view') || can('appointment_statuses.view')): ?>
+        <?php if (can('doctors.view') || can('reference_doctors.view') || can('treatment_masters.view') || can('medicine_masters.view') || can('lab_masters.view') || can('appointment_statuses.view')): ?>
         <div class="nav-section">
-            <button class="nav-toggle <?= menu_open(['doctors','reference-doctors','treatment-masters','medicines','appointment-statuses']) ?>" type="button" data-target="menuMasters">
+            <button class="nav-toggle <?= menu_open(['doctors','reference-doctors','treatment-masters','medicines','lab-masters','appointment-statuses']) ?>" type="button" data-target="menuMasters">
                 <span><i class="bi bi-database"></i><span class="label">Masters</span></span>
                 <i class="bi bi-chevron-down chevron"></i>
             </button>
-            <div class="nav-submenu <?= menu_open(['doctors','reference-doctors','treatment-masters','medicines','appointment-statuses']) ?>" id="menuMasters">
+            <div class="nav-submenu <?= menu_open(['doctors','reference-doctors','treatment-masters','medicines','lab-masters','appointment-statuses']) ?>" id="menuMasters">
                 <?php if (can('doctors.view')): ?>
                 <a class="nav-link <?= active_menu('doctors') ?>" href="<?= app_url('doctors') ?>"><i class="bi bi-person-badge"></i><span>Doctors</span></a>
                 <?php endif; ?>
@@ -96,6 +96,9 @@
                 <?php endif; ?>
                 <?php if (can('medicine_masters.view')): ?>
                 <a class="nav-link <?= active_menu('medicines') ?>" href="<?= app_url('medicines') ?>"><i class="bi bi-capsule"></i><span>Medicine Master</span></a>
+                <?php endif; ?>
+                <?php if (can('lab_masters.view')): ?>
+                <a class="nav-link <?= active_menu('lab-masters') ?>" href="<?= app_url('lab-masters') ?>"><i class="bi bi-eyedropper"></i><span>Lab Master</span></a>
                 <?php endif; ?>
                 <?php if (can('appointment_statuses.view')): ?>
                 <a class="nav-link <?= active_menu('appointment-statuses') ?>" href="<?= app_url('appointment-statuses') ?>"><i class="bi bi-tags"></i><span>Appointment Status</span></a>

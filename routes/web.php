@@ -11,6 +11,7 @@ use App\Controllers\DashboardController;
 use App\Controllers\DoctorController;
 use App\Controllers\FollowUpController;
 use App\Controllers\InventoryController;
+use App\Controllers\LabMasterController;
 use App\Controllers\MedicineMasterController;
 use App\Controllers\PatientController;
 use App\Controllers\PaymentController;
@@ -110,6 +111,7 @@ $router->group(['middleware' => ['auth']], function ($router) {
     $router->get('/reference-doctors', [ReferenceDoctorController::class, 'index'], ['permission:reference_doctors.view']);
     $router->get('/reference-doctors/datatable', [ReferenceDoctorController::class, 'datatable'], ['permission:reference_doctors.view']);
     $router->get('/reference-doctors/create', [ReferenceDoctorController::class, 'create'], ['permission:reference_doctors.add']);
+    $router->post('/reference-doctors/quick', [ReferenceDoctorController::class, 'quickStore'], ['csrf', 'permission:patients.edit']);
     $router->post('/reference-doctors', [ReferenceDoctorController::class, 'store'], ['csrf', 'permission:reference_doctors.add']);
     $router->get('/reference-doctors/{id}/edit', [ReferenceDoctorController::class, 'edit'], ['permission:reference_doctors.edit']);
     $router->post('/reference-doctors/{id}', [ReferenceDoctorController::class, 'update'], ['csrf', 'permission:reference_doctors.edit']);
@@ -130,6 +132,14 @@ $router->group(['middleware' => ['auth']], function ($router) {
     $router->get('/medicines/{id}/edit', [MedicineMasterController::class, 'edit'], ['permission:medicine_masters.edit']);
     $router->post('/medicines/{id}', [MedicineMasterController::class, 'update'], ['csrf', 'permission:medicine_masters.edit']);
     $router->post('/medicines/{id}/delete', [MedicineMasterController::class, 'destroy'], ['csrf', 'permission:medicine_masters.delete']);
+
+    $router->get('/lab-masters', [LabMasterController::class, 'index'], ['permission:lab_masters.view']);
+    $router->get('/lab-masters/datatable', [LabMasterController::class, 'datatable'], ['permission:lab_masters.view']);
+    $router->get('/lab-masters/create', [LabMasterController::class, 'create'], ['permission:lab_masters.add']);
+    $router->post('/lab-masters', [LabMasterController::class, 'store'], ['csrf', 'permission:lab_masters.add']);
+    $router->get('/lab-masters/{id}/edit', [LabMasterController::class, 'edit'], ['permission:lab_masters.edit']);
+    $router->post('/lab-masters/{id}', [LabMasterController::class, 'update'], ['csrf', 'permission:lab_masters.edit']);
+    $router->post('/lab-masters/{id}/delete', [LabMasterController::class, 'destroy'], ['csrf', 'permission:lab_masters.delete']);
 
     $router->get('/appointment-statuses', [AppointmentStatusController::class, 'index'], ['permission:appointment_statuses.view']);
     $router->get('/appointment-statuses/datatable', [AppointmentStatusController::class, 'datatable'], ['permission:appointment_statuses.view']);
