@@ -9,6 +9,7 @@ use App\Core\Database;
 use App\Core\DataTable;
 use App\Core\Request;
 use App\Core\Session;
+use App\Services\AppointmentService;
 use App\Services\AuditService;
 
 class PatientController extends Controller
@@ -274,6 +275,7 @@ class PatientController extends Controller
             'patient' => null,
             'suggestedOpdNumber' => $this->nextPatientCode(),
             'referenceDoctors' => Database::fetchAll('SELECT id, name FROM reference_doctors WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name'),
+            'doctors' => Database::fetchAll('SELECT id, name FROM doctors WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name'),
         ]);
     }
 
@@ -339,13 +341,31 @@ class PatientController extends Controller
         AuditService::log('patients', 'create', $id, null, ['patient_code' => $code, 'name' => $data['name']]);
 
         $action = $request->input('submit_action');
+        $doctorId = (int) $request->input('doctor_id');
         $redirect = 'patients/' . $id . '?tab=clinical';
         $message = 'Patient created successfully.';
 
-        if ($action === 'save_new') {
+        // If user explicitly clicked "Save & Send to Waiting" or receptionist selected a doctor
+        if ($action === 'waiting' || (!empty($doctorId) && $action !== 'save_new' && $action !== 'book')) {
+            if (!$doctorId) {
+                $firstDoc = Database::fetch('SELECT id FROM doctors WHERE deleted_at IS NULL AND is_active = 1 ORDER BY id ASC LIMIT 1');
+                $doctorId = $firstDoc ? (int) $firstDoc['id'] : 0;
+            }
+            if ($doctorId > 0) {
+                try {
+                    $aptService = new AppointmentService();
+                    $aptId = $aptService->assignWalkIn((int) $id, $doctorId, $request->input('notes') ?: 'New patient walk-in');
+                    $redirect = 'queue?highlight=' . urlencode($code);
+                    $message = 'Patient registered and added to Waiting queue successfully.';
+                } catch (\Throwable $ex) {
+                    // Fallback if assigning walk-in fails
+                    $message = 'Patient created successfully (could not add to waiting queue: ' . $ex->getMessage() . ').';
+                }
+            }
+        } elseif ($action === 'save_new') {
             $redirect = 'patients/create';
         } elseif ($action === 'book') {
-            $redirect = 'calendar?patient_id=' . $id;
+            $redirect = 'calendar?patient_id=' . $id . ($doctorId ? '&doctor_id=' . $doctorId : '');
         }
 
         if ($request->isAjax()) {
@@ -398,6 +418,7 @@ class PatientController extends Controller
             'pageTitle' => 'Edit Patient',
             'patient' => $patient,
             'referenceDoctors' => Database::fetchAll('SELECT id, name FROM reference_doctors WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name'),
+            'doctors' => Database::fetchAll('SELECT id, name FROM doctors WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name'),
         ]);
     }
 

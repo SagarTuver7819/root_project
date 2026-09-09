@@ -1,6 +1,6 @@
 <?php
 $actions = '<a href="' . app_url('patients/create') . '" class="btn btn-primary"><i class="bi bi-person-plus me-1"></i>Add Patient</a>'
-    . '<a href="' . app_url('queue') . '" class="btn btn-light"><i class="bi bi-people me-1"></i>Queue</a>'
+    . '<a href="' . app_url('queue') . '" class="btn btn-light"><i class="bi bi-people me-1"></i>Today\'s Walk-in Patients</a>'
     . '<a href="' . app_url('calendar') . '" class="btn btn-light"><i class="bi bi-calendar3 me-1"></i>Full Calendar</a>';
 require __DIR__ . '/../../components/page-header.php';
 
@@ -25,15 +25,15 @@ $doctors = $doctors ?? [];
                 <div class="card-body d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 py-3">
                     <div>
                         <div class="fd-hero-eyebrow">Front Desk</div>
-                        <h2 class="fd-hero-title mb-1">This week’s appointments</h2>
-                        <p class="text-muted mb-0 small">Week calendar below · patient aave tyare Add Patient thi doctor pase moklo.</p>
+                        <h2 class="fd-hero-title mb-1">Appointments &amp; Walk-ins</h2>
+                        <p class="text-muted mb-0 small">Calendar below · patient aave tyare Add Patient thi doctor pase moklo.</p>
                     </div>
                     <div class="d-flex flex-wrap gap-2">
                         <a href="<?= app_url('patients/create') ?>" class="btn btn-primary btn-lg">
                             <i class="bi bi-person-plus me-1"></i>Add Patient
                         </a>
                         <a href="<?= app_url('queue') ?>" class="btn btn-outline-secondary btn-lg">
-                            <i class="bi bi-people me-1"></i>Queue
+                            <i class="bi bi-people me-1"></i>Today's Walk-in Patients
                         </a>
                     </div>
                 </div>
@@ -67,8 +67,8 @@ $doctors = $doctors ?? [];
         <div class="card-body">
             <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
                 <div>
-                    <h3 class="h5 mb-1">Week Calendar</h3>
-                    <div class="text-muted small">Current week view · doctor color thi appointments</div>
+                    <h3 class="h5 mb-1">Calendar</h3>
+                    <div class="text-muted small">4-Day / Daily view · doctor color appointments · click any slot to book</div>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
                     <a href="<?= app_url('patients/create') ?>" class="btn btn-sm btn-primary">
@@ -134,10 +134,17 @@ document.addEventListener('DOMContentLoaded', function () {
     if (empty) empty.classList.add('d-none');
 
     const cal = new FullCalendar.Calendar(el, {
-      initialView: 'timeGridWeek',
+      views: {
+        timeGridFourDay: {
+          type: 'timeGrid',
+          duration: { days: 4 },
+          buttonText: '4 Days'
+        }
+      },
+      initialView: 'timeGridFourDay',
       firstDay: 1,
-      headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridWeek,timeGridDay' },
-      buttonText: { today: 'Today', week: 'Week', day: 'Day' },
+      headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridFourDay,timeGridDay' },
+      buttonText: { today: 'Today', day: '1 Day' },
       height: 620,
       expandRows: true,
       slotMinTime: '07:00:00',
@@ -146,6 +153,7 @@ document.addEventListener('DOMContentLoaded', function () {
       slotLabelInterval: '01:00:00',
       allDaySlot: false,
       nowIndicator: true,
+      selectable: true,
       eventDisplay: 'block',
       dayMaxEvents: true,
       stickyHeaderDates: true,
@@ -177,6 +185,15 @@ document.addEventListener('DOMContentLoaded', function () {
           const em = String(end.getMonth() + 1).padStart(2, '0');
           titleEl.textContent = dd + '-' + mm + '-' + yyyy + ' – ' + ed + '-' + em + '-' + end.getFullYear();
         }
+      },
+      dateClick: function (info) {
+        let timeStr = '10:00';
+        let dateStr = info.dateStr;
+        if (info.dateStr.includes('T')) {
+          timeStr = info.dateStr.substring(11, 16);
+          dateStr = info.dateStr.substring(0, 10);
+        }
+        window.location.href = '<?= app_url('calendar') ?>?open_book=1&date=' + encodeURIComponent(dateStr) + '&time=' + encodeURIComponent(timeStr);
       },
       events: function (info, success, failure) {
         const params = new URLSearchParams({ start: info.startStr, end: info.endStr });

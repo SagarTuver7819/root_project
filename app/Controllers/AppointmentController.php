@@ -296,22 +296,23 @@ class AppointmentController extends \App\Core\Controller
         }
 
         $this->view('modules/appointments/queue', [
-            'title' => 'Appointment Queue',
-            'pageTitle' => 'Appointment Queue',
+            'title' => "Today's Walk-in Patients",
+            'pageTitle' => "Today's Walk-in Patients",
             'date' => $date,
             'doctorId' => $doctorId,
             'lockedDoctorId' => $scopedDoctorId,
             'doctors' => $doctors,
             'queue' => Database::fetchAll(
                 'SELECT a.*, p.name AS patient_name, p.mobile, p.patient_code, p.age, p.dob, p.gender,
-                        p.allergies, p.blood_group, d.name AS doctor_name,
+                        p.allergies, p.blood_group, p.registration_date AS patient_reg_date, p.created_at AS patient_created_at,
+                        d.name AS doctor_name,
                         tm.name AS treatment_name, tm.default_price AS treatment_price
                  FROM appointments a
                  INNER JOIN patients p ON p.id = a.patient_id
                  INNER JOIN doctors d ON d.id = a.doctor_id
                  LEFT JOIN treatment_masters tm ON tm.id = a.treatment_master_id
                  WHERE ' . implode(' AND ', $where) . '
-                 ORDER BY a.start_time',
+                 ORDER BY a.start_time ASC, a.created_at ASC',
                 $params
             ),
             'bookingFee' => BookingService::amount(),

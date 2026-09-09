@@ -93,10 +93,29 @@ $renderReferenceDoctorField = static function (string $selected, array $doctors,
                 </div>
 
                 <?php if ($isFrontDesk): ?>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
+                        <label class="form-label">Consulting Doctor</label>
+                        <select class="form-select" name="doctor_id" id="patientDoctorSelect">
+                            <option value="">Select Doctor (for Waiting Queue)</option>
+                            <?php foreach (($doctors ?? []) as $d): ?>
+                                <option value="<?= e($d['id']) ?>"><?= e(doctor_label($d['name'])) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="form-text">Optional · auto adds patient to doctor's waiting queue</div>
+                    </div>
+                    <div class="col-md-3">
                         <?php $renderReferenceDoctorField($refSelected, $referenceDoctors ?? [], $canQuickAddRef); ?>
                     </div>
                 <?php else: ?>
+                    <div class="col-md-2">
+                        <label class="form-label">Doctor (Optional)</label>
+                        <select class="form-select" name="doctor_id" id="patientDoctorSelect">
+                            <option value="">Select Doctor</option>
+                            <?php foreach (($doctors ?? []) as $d): ?>
+                                <option value="<?= e($d['id']) ?>"><?= e(doctor_label($d['name'])) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                     <div class="col-md-2">
                         <label class="form-label">Blood Group</label>
                         <input class="form-control" name="blood_group" value="<?= e(old('blood_group', $patient['blood_group'] ?? '')) ?>">
@@ -182,8 +201,11 @@ $renderReferenceDoctorField = static function (string $selected, array $doctors,
                 <div class="mt-4 d-flex gap-2 flex-wrap">
                     <button type="submit" class="btn btn-primary" name="submit_action" value="save">Save</button>
                     <?php if (!$isEdit): ?>
-                        <button type="submit" class="btn btn-outline-primary" name="submit_action" value="save_new">Save & New</button>
-                        <button type="submit" class="btn btn-outline-primary" name="submit_action" value="book">Save & Book</button>
+                        <button type="submit" class="btn btn-success" name="submit_action" value="waiting">
+                            <i class="bi bi-hourglass-split me-1"></i>Save &amp; Send to Waiting
+                        </button>
+                        <button type="submit" class="btn btn-outline-primary" name="submit_action" value="save_new">Save &amp; New</button>
+                        <button type="submit" class="btn btn-outline-primary" name="submit_action" value="book">Save &amp; Book</button>
                     <?php endif; ?>
                     <a class="btn btn-light" href="<?= $cancelUrl ?>">Cancel</a>
                 </div>
@@ -195,6 +217,9 @@ $renderReferenceDoctorField = static function (string $selected, array $doctors,
                 <div class="d-flex gap-2 flex-wrap">
                     <button type="submit" class="btn btn-primary" name="submit_action" value="save">Save</button>
                     <?php if (!$isEdit): ?>
+                        <button type="submit" class="btn btn-success" name="submit_action" value="waiting">
+                            <i class="bi bi-hourglass-split me-1"></i>Save &amp; Send to Waiting
+                        </button>
                         <button type="submit" class="btn btn-outline-primary" name="submit_action" value="save_new">Save &amp; New</button>
                     <?php endif; ?>
                     <a class="btn btn-light" href="<?= $cancelUrl ?>">Cancel</a>

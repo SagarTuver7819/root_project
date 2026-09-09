@@ -1,6 +1,6 @@
 <?php
 $actions = '<a href="' . app_url('patients/create') . '" class="btn btn-light"><i class="bi bi-person-plus me-1"></i>Add Patient</a>'
-    . '<a href="' . app_url('queue') . '" class="btn btn-light"><i class="bi bi-people me-1"></i>Queue</a>'
+    . '<a href="' . app_url('queue') . '" class="btn btn-light"><i class="bi bi-people me-1"></i>Today\'s Walk-in Patients</a>'
     . '<button type="button" class="btn btn-primary btn-book-slot" id="btnOpenBook"><i class="bi bi-calendar-plus me-1"></i>Book Treatment Slot</button>';
 require __DIR__ . '/../../components/page-header.php';
 ?>
@@ -292,7 +292,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       }
       if (qs.get('open_book') === '1') {
-        openBookModal('<?= date('Y-m-d') ?>', '10:00', {
+        const bookDate = qs.get('date') || '<?= date('Y-m-d') ?>';
+        const bookTime = qs.get('time') || '10:00';
+        openBookModal(bookDate, bookTime, {
           patientId: prefillPatientId,
           doctorId: prefillDoctorId,
           reason: prefillReason
@@ -377,11 +379,11 @@ document.addEventListener('DOMContentLoaded', function () {
     if (timeStr) {
       document.getElementById('startTime').value = timeStr;
       const [h, m] = timeStr.split(':').map(Number);
-      const end = new Date(2000, 0, 1, h, m + 30);
+      const end = new Date(2000, 0, 1, h + 1, m);
       document.getElementById('endTime').value = pad2(end.getHours()) + ':' + pad2(end.getMinutes());
     } else {
       document.getElementById('startTime').value = '10:00';
-      document.getElementById('endTime').value = '10:30';
+      document.getElementById('endTime').value = '11:00';
     }
     const doctorId = (prefill && prefill.doctorId) || document.getElementById('doctorFilter').value;
     if (doctorId && document.getElementById('modalDoctor')) {
@@ -403,12 +405,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
   if (window.FullCalendar) {
     const cal = new FullCalendar.Calendar(document.getElementById('calendar'), {
-      initialView: 'timeGridWeek',
+      views: {
+        timeGridFourDay: {
+          type: 'timeGrid',
+          duration: { days: 4 },
+          buttonText: '4 Days'
+        }
+      },
+      initialView: 'timeGridFourDay',
       firstDay: 1,
       headerToolbar: {
         left: 'prev,next today',
         center: 'title',
-        right: 'timeGridWeek,timeGridDay,dayGridMonth'
+        right: 'timeGridFourDay,timeGridDay,timeGridWeek,dayGridMonth'
       },
       buttonText: {
         today: 'Today',

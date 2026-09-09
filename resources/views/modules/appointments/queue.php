@@ -268,18 +268,55 @@ $highlightCode = $_GET['highlight'] ?? $_GET['code'] ?? '';
     border-radius: 999px;
     padding: .12rem .45rem;
 }
-.kanban-tag-walkin {
-    background: #ecfeff;
-    color: #0e7490;
-    border: 1px solid #a5f3fc;
+.kanban-badge-type {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    font-size: .68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    border-radius: 999px;
+    padding: .15rem .5rem;
+    white-space: nowrap;
 }
-.kanban-tag-reason {
-    background: #f8fafc;
+.kanban-badge-appointed {
+    background: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+}
+.kanban-badge-walkin {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
+}
+.kanban-badge-nature {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    font-size: .68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    border-radius: 999px;
+    padding: .15rem .5rem;
+    white-space: nowrap;
+}
+.kanban-badge-nature-new {
+    background: #dcfce7;
+    color: #15803d;
+    border: 1px solid #86efac;
+}
+.kanban-badge-nature-old {
+    background: #f1f5f9;
     color: #475569;
-    border: 1px solid #e2e8f0;
-    text-transform: none;
-    letter-spacing: 0;
-    font-weight: 600;
+    border: 1px solid #cbd5e1;
+}
+.kanban-time-block {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: .2rem;
 }
 .kanban-empty {
     text-align: center;
@@ -319,10 +356,10 @@ $highlightCode = $_GET['highlight'] ?? $_GET['code'] ?? '';
                 <button class="btn btn-primary w-100"><i class="bi bi-arrow-repeat me-1"></i>Filter</button>
             </div>
             <div class="col-md-3 d-flex justify-content-md-end align-items-end">
-                <div class="queue-total-chip" title="Appointments currently in queue">
+                <div class="queue-total-chip" title="Total patients today">
                     <div class="queue-total-meta">
-                        <span class="queue-total-label">Total in Queue</span>
-                        <span class="queue-total-hint">Active appointments today</span>
+                        <span class="queue-total-label">Today's Patients</span>
+                        <span class="queue-total-hint">Walk-in &amp; Appointed</span>
                     </div>
                     <span class="queue-total-count"><?= e((string) $totalInQueue) ?></span>
                 </div>
@@ -383,6 +420,11 @@ foreach ($columnKeys as $status):
                 }
                 $allergyText = trim((string) ($row['allergies'] ?? ''));
                 $isWalkIn = ($row['entry_type'] ?? '') === 'walk_in';
+                $isAppointed = !$isWalkIn;
+                $todayDate = $date ?? date('Y-m-d');
+                $patientRegDate = !empty($row['patient_reg_date']) ? substr((string) $row['patient_reg_date'], 0, 10) : '';
+                $patientCreatedAt = !empty($row['patient_created_at']) ? substr((string) $row['patient_created_at'], 0, 10) : '';
+                $isNewPatient = ($patientRegDate === $todayDate) || ($patientCreatedAt === $todayDate) || (!empty($bookingInfo['case_type']) && $bookingInfo['case_type'] === 'new');
                 $slotEnd = format_time($row['end_time'] ?? null);
                 $visitReason = trim((string) ($row['visit_reason'] ?? ''));
                 $bookingInfo = \App\Services\BookingService::statusForPatient(
@@ -398,15 +440,40 @@ foreach ($columnKeys as $status):
                      id="card-apt-<?= e((string) $row['id']) ?>">
                     
                     <div class="kanban-card-top">
-                        <a class="kanban-patient-name text-decoration-none" href="<?= app_url('appointments/' . $row['id'] . '/edit') ?>">
-                            <?= e($row['patient_name'] ?? 'Walk-in Patient') ?>
-                        </a>
-                        <span class="kanban-time">
-                            <?= e(format_time($row['start_time'] ?? null)) ?>
-                            <?php if ($slotEnd && $slotEnd !== '-'): ?>
-                                – <?= e($slotEnd) ?>
-                            <?php endif; ?>
-                        </span>
+                        <div>
+                            <a class="kanban-patient-name text-decoration-none" href="<?= app_url('appointments/' . $row['id'] . '/edit') ?>">
+                                <?= e($row['patient_name'] ?? 'Patient') ?>
+                            </a>
+                            <div class="d-flex align-items-center gap-1 mt-1 flex-wrap">
+                                <?php if ($isAppointed): ?>
+                                    <span class="kanban-badge-type kanban-badge-appointed" title="Booked Appointment slot">
+                                        <i class="bi bi-calendar2-check"></i> Appointed
+                                    </span>
+                                <?php else: ?>
+                                    <span class="kanban-badge-type kanban-badge-walkin" title="Direct Walk-in Patient">
+                                        <i class="bi bi-person-walking"></i> Walk-in
+                                    </span>
+                                <?php endif; ?>
+
+                                <?php if ($isNewPatient): ?>
+                                    <span class="kanban-badge-nature kanban-badge-nature-new" title="New Patient registered today">
+                                        <i class="bi bi-stars"></i> New
+                                    </span>
+                                <?php else: ?>
+                                    <span class="kanban-badge-nature kanban-badge-nature-old" title="Existing Follow-up / Routine Patient">
+                                        <i class="bi bi-person-check"></i> Existing
+                                    </span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <div class="kanban-time-block">
+                            <span class="kanban-time" title="Scheduled / Arrival time">
+                                <i class="bi bi-clock me-1"></i><?= e(format_time($row['start_time'] ?? null)) ?>
+                                <?php if ($slotEnd && $slotEnd !== '-'): ?>
+                                    – <?= e($slotEnd) ?>
+                                <?php endif; ?>
+                            </span>
+                        </div>
                     </div>
 
                     <div class="kanban-meta">
@@ -438,14 +505,9 @@ foreach ($columnKeys as $status):
                         <?= e($bookingInfo['label'] ?? '') ?>
                     </div>
 
-                    <?php if ($isWalkIn || $visitReason !== ''): ?>
+                    <?php if ($visitReason !== ''): ?>
                         <div class="kanban-tags">
-                            <?php if ($isWalkIn): ?>
-                                <span class="kanban-tag kanban-tag-walkin">Walk-in</span>
-                            <?php endif; ?>
-                            <?php if ($visitReason !== ''): ?>
-                                <span class="kanban-tag kanban-tag-reason"><?= e($visitReason) ?></span>
-                            <?php endif; ?>
+                            <span class="kanban-tag kanban-tag-reason"><i class="bi bi-chat-left-text me-1"></i><?= e($visitReason) ?></span>
                         </div>
                     <?php endif; ?>
 
