@@ -2186,7 +2186,7 @@ table.dataTable,
     position: relative;
     display: grid;
     grid-template-columns: repeat(16, minmax(0, 1fr));
-    gap: .28rem .22rem;
+    gap: .45rem .22rem;
     padding: .35rem 0;
 }
 
@@ -2221,6 +2221,35 @@ table.dataTable,
     transform: translateY(-50%);
 }
 
+.palmer-tooth-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .12rem;
+    min-width: 0;
+    z-index: 2;
+}
+
+.palmer-tooth-note {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    font-size: .58rem;
+    line-height: 1.15;
+    font-weight: 600;
+    color: #0f766e;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-height: .7rem;
+}
+
+.palmer-tooth-note.is-empty {
+    visibility: hidden;
+}
+
 .palmer-tooth {
     border: 0;
     background: transparent;
@@ -2228,6 +2257,7 @@ table.dataTable,
     font-size: .95rem;
     color: #1e293b;
     min-height: 2rem;
+    width: 100%;
     border-radius: .4rem;
     z-index: 2;
 }

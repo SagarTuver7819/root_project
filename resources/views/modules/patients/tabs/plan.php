@@ -32,12 +32,25 @@ $toothLabel = static function (string $code): string {
     return ($q[$prefix] ?? $prefix) . ' ' . $num;
 };
 
-$renderPalmerTeeth = static function (array $codes, bool $canEdit, array $selectedTeeth): void {
+$renderPalmerTeeth = static function (array $codes, bool $canEdit, array $selectedTeeth, array $toothNotes, string $arch): void {
     foreach ($codes as $code) {
         $label = preg_replace('/^[A-Z]{2}/', '', $code) ?? $code;
         $on = !empty($selectedTeeth[$code]);
+        $note = trim((string) ($toothNotes[$code] ?? ''));
+        $noteShort = $note;
+        if (mb_strlen($noteShort) > 18) {
+            $noteShort = mb_substr($noteShort, 0, 18) . '…';
+        }
         ?>
-        <button type="button" class="palmer-tooth<?= $on ? ' is-selected' : '' ?>" data-tooth="<?= e($code) ?>" <?= $canEdit ? '' : 'disabled' ?>><?= e($label) ?></button>
+        <div class="palmer-tooth-cell palmer-arch-<?= e($arch) ?>" data-tooth-cell="<?= e($code) ?>">
+            <?php if ($arch === 'upper'): ?>
+                <span class="palmer-tooth-note<?= $note === '' ? ' is-empty' : '' ?>" title="<?= e($note) ?>"><?= e($noteShort) ?></span>
+            <?php endif; ?>
+            <button type="button" class="palmer-tooth<?= $on ? ' is-selected' : '' ?>" data-tooth="<?= e($code) ?>" <?= $canEdit ? '' : 'disabled' ?>><?= e($label) ?></button>
+            <?php if ($arch === 'lower'): ?>
+                <span class="palmer-tooth-note<?= $note === '' ? ' is-empty' : '' ?>" title="<?= e($note) ?>"><?= e($noteShort) ?></span>
+            <?php endif; ?>
+        </div>
         <?php
     }
 };
@@ -53,8 +66,8 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
             <div class="palmer-arch-label permanent"><i class="bi bi-emoji-smile"></i> Permanent Teeth</div>
             <div class="palmer-quad-labels"><span>Upper Right</span><span class="text-end">Upper Left</span></div>
             <div class="palmer-grid">
-                <?php $renderPalmerTeeth(['UR8','UR7','UR6','UR5','UR4','UR3','UR2','UR1','UL1','UL2','UL3','UL4','UL5','UL6','UL7','UL8'], $canEdit, $selectedTeeth); ?>
-                <?php $renderPalmerTeeth(['LR8','LR7','LR6','LR5','LR4','LR3','LR2','LR1','LL1','LL2','LL3','LL4','LL5','LL6','LL7','LL8'], $canEdit, $selectedTeeth); ?>
+                <?php $renderPalmerTeeth(['UR8','UR7','UR6','UR5','UR4','UR3','UR2','UR1','UL1','UL2','UL3','UL4','UL5','UL6','UL7','UL8'], $canEdit, $selectedTeeth, $toothNotes, 'upper'); ?>
+                <?php $renderPalmerTeeth(['LR8','LR7','LR6','LR5','LR4','LR3','LR2','LR1','LL1','LL2','LL3','LL4','LL5','LL6','LL7','LL8'], $canEdit, $selectedTeeth, $toothNotes, 'lower'); ?>
             </div>
             <div class="palmer-quad-labels lower"><span>Lower Right</span><span class="text-end">Lower Left</span></div>
         </div>
@@ -62,12 +75,12 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
             <div class="palmer-arch-label deciduous"><i class="bi bi-emoji-smile"></i> Deciduous Teeth</div>
             <div class="palmer-quad-labels"><span>Upper Right</span><span class="text-end">Upper Left</span></div>
             <div class="palmer-grid deciduous">
-                <?php $renderPalmerTeeth(['URE','URD','URC','URB','URA','ULA','ULB','ULC','ULD','ULE'], $canEdit, $selectedTeeth); ?>
-                <?php $renderPalmerTeeth(['LRE','LRD','LRC','LRB','LRA','LLA','LLB','LLC','LLD','LLE'], $canEdit, $selectedTeeth); ?>
+                <?php $renderPalmerTeeth(['URE','URD','URC','URB','URA','ULA','ULB','ULC','ULD','ULE'], $canEdit, $selectedTeeth, $toothNotes, 'upper'); ?>
+                <?php $renderPalmerTeeth(['LRE','LRD','LRC','LRB','LRA','LLA','LLB','LLC','LLD','LLE'], $canEdit, $selectedTeeth, $toothNotes, 'lower'); ?>
             </div>
             <div class="palmer-quad-labels lower"><span>Lower Right</span><span class="text-end">Lower Left</span></div>
         </div>
-        <p class="palmer-hint mb-0">Har tooth click = alag treatment line. Note popup ma pehla notes recommendation tarike aavse.</p>
+        <p class="palmer-hint mb-0">Tooth note save thay pachhi chart par nana axar ma note dekhase.</p>
     </div>
 
     <div class="suggested-plan-head">
@@ -279,6 +292,21 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
     });
     form.querySelectorAll('.palmer-tooth').forEach(function (btn) {
       btn.classList.toggle('is-selected', !!selected[btn.dataset.tooth]);
+    });
+    paintToothNotes();
+  }
+
+  function paintToothNotes() {
+    const notes = parseTeethNotes();
+    form.querySelectorAll('.palmer-tooth-cell').forEach(function (cell) {
+      const code = cell.getAttribute('data-tooth-cell') || '';
+      const noteEl = cell.querySelector('.palmer-tooth-note');
+      if (!noteEl) return;
+      const note = String(notes[code] || '').trim();
+      const short = note.length > 18 ? (note.slice(0, 18) + '…') : note;
+      noteEl.textContent = short;
+      noteEl.setAttribute('title', note);
+      noteEl.classList.toggle('is-empty', note === '');
     });
   }
 

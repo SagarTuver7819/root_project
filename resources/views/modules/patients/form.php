@@ -116,10 +116,6 @@ $renderReferenceDoctorField = static function (string $selected, array $doctors,
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Blood Group</label>
-                        <input class="form-control" name="blood_group" value="<?= e(old('blood_group', $patient['blood_group'] ?? '')) ?>">
-                    </div>
                 <?php endif; ?>
             </div>
         </div>
