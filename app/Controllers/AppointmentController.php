@@ -213,9 +213,14 @@ class AppointmentController extends \App\Core\Controller
 
         try {
             Database::beginTransaction();
-            if (!$this->appointments->isSlotAvailable((int) $data['doctor_id'], $data['appointment_date'], $data['start_time'], $data['end_time'], (int) $id, true)) {
-                throw new \RuntimeException('Selected slot is already booked.');
-            }
+            $this->appointments->assertSlotBookable(
+                (int) $data['doctor_id'],
+                (string) $data['appointment_date'],
+                (string) $data['start_time'],
+                (string) $data['end_time'],
+                (int) $id,
+                true
+            );
             $payload = [
                 'patient_id' => !empty($data['patient_id']) ? (int) $data['patient_id'] : null,
                 'doctor_id' => (int) $data['doctor_id'],

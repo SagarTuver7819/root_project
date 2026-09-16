@@ -95,9 +95,15 @@ require __DIR__ . '/../../components/page-header.php';
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Doctor</label>
-                        <select class="form-select" name="doctor_id" id="modalDoctor" required <?= !empty($lockedDoctorId) ? 'disabled' : '' ?>>
+                        <?php
+                        $urlDoctorId = isset($_GET['doctor_id']) ? (string) $_GET['doctor_id'] : '';
+                        $modalDoctorSelected = !empty($lockedDoctorId)
+                            ? (string) $lockedDoctorId
+                            : $urlDoctorId;
+                        ?>
+                        <select class="form-select no-select2" name="doctor_id" id="modalDoctor" data-no-select2="1" required <?= !empty($lockedDoctorId) ? 'disabled' : '' ?>>
                             <?php foreach (($doctors ?? []) as $d): ?>
-                                <option value="<?= e($d['id']) ?>" <?= !empty($lockedDoctorId) && (string) $lockedDoctorId === (string) $d['id'] ? 'selected' : '' ?>><?= e(doctor_label($d['name'])) ?></option>
+                                <option value="<?= e((string) $d['id']) ?>" <?= $modalDoctorSelected !== '' && $modalDoctorSelected === (string) $d['id'] ? 'selected' : '' ?>><?= e(doctor_label($d['name'])) ?></option>
                             <?php endforeach; ?>
                         </select>
                         <?php if (!empty($lockedDoctorId)): ?>
@@ -279,7 +285,9 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   jQuery(function () {
+    ensureNativeDoctorSelect();
     setTimeout(function () {
+      ensureNativeDoctorSelect();
       initPatientSelect(prefillPatientId || null);
       syncEntryType();
       const ret = qs.get('return') || '';
@@ -299,6 +307,9 @@ document.addEventListener('DOMContentLoaded', function () {
           doctorId: prefillDoctorId,
           reason: prefillReason
         });
+        setTimeout(function () { setModalDoctor(prefillDoctorId); }, 50);
+      } else if (prefillDoctorId) {
+        setModalDoctor(prefillDoctorId);
       }
     }, 0);
   });
@@ -374,6 +385,29 @@ document.addEventListener('DOMContentLoaded', function () {
     return pad2(d.getDate()) + '-' + pad2(d.getMonth() + 1) + '-' + d.getFullYear();
   }
 
+  function ensureNativeDoctorSelect() {
+    const el = document.getElementById('modalDoctor');
+    if (!el || !window.jQuery) return el;
+    const $el = jQuery(el);
+    if ($el.hasClass('select2-hidden-accessible')) {
+      try { $el.select2('destroy'); } catch (e) {}
+    }
+    $el.addClass('no-select2').attr('data-no-select2', '1');
+    $el.next('.select2-container').remove();
+    return el;
+  }
+
+  function setModalDoctor(doctorId) {
+    const el = ensureNativeDoctorSelect();
+    if (!el || el.disabled) return;
+    const id = String(doctorId || '').trim();
+    if (!id) return;
+    const hasOption = Array.from(el.options).some(function (o) { return String(o.value) === id; });
+    if (hasOption) {
+      el.value = id;
+    }
+  }
+
   function openBookModal(dateStr, timeStr, prefill) {
     document.getElementById('appointmentDate').value = (dateStr || '<?= date('Y-m-d') ?>').substring(0, 10);
     if (timeStr) {
@@ -385,10 +419,11 @@ document.addEventListener('DOMContentLoaded', function () {
       document.getElementById('startTime').value = '10:00';
       document.getElementById('endTime').value = '11:00';
     }
-    const doctorId = (prefill && prefill.doctorId) || document.getElementById('doctorFilter').value;
-    if (doctorId && document.getElementById('modalDoctor')) {
-      document.getElementById('modalDoctor').value = doctorId;
-    }
+    const doctorId = (prefill && prefill.doctorId)
+      || prefillDoctorId
+      || document.getElementById('doctorFilter')?.value
+      || '';
+    setModalDoctor(doctorId);
     if (prefill && prefill.reason) {
       document.getElementById('notesField').value = prefill.reason;
       document.getElementById('visitReasonField').value = prefill.reason;

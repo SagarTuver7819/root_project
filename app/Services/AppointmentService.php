@@ -23,15 +23,15 @@ class AppointmentService
             }
 
             $skipSlotCheck = !empty($data['skip_slot_check']) || $entryType === 'walk_in';
-            if (!$skipSlotCheck && !$this->isSlotAvailable(
-                (int) $data['doctor_id'],
-                (string) $data['appointment_date'],
-                (string) $data['start_time'],
-                (string) $data['end_time'],
-                null,
-                true
-            )) {
-                throw new RuntimeException('Selected slot is already booked.');
+            if (!$skipSlotCheck) {
+                $this->assertSlotBookable(
+                    (int) $data['doctor_id'],
+                    (string) $data['appointment_date'],
+                    (string) $data['start_time'],
+                    (string) $data['end_time'],
+                    null,
+                    true
+                );
             }
 
             if ($entryType === 'doctor_remark' && empty($data['notes']) && empty($data['visit_reason'])) {
@@ -135,6 +135,54 @@ class AppointmentService
         ]);
     }
 
+    public const MAX_APPOINTMENTS_PER_SLOT = 9;
+
+    /**
+     * Doctor-wise overlap block; same time slot allowed for different doctors.
+     * Hard cap: max 9 active appointments overlapping the same window.
+     */
+    public function assertSlotBookable(
+        int $doctorId,
+        string $date,
+        string $startTime,
+        string $endTime,
+        ?int $excludeAppointmentId = null,
+        bool $lock = false
+    ): void {
+        $startTime = $this->normalizeTime($startTime) ?: $startTime;
+        $endTime = $this->normalizeTime($endTime) ?: $endTime;
+
+        $overlapSql = "SELECT id, doctor_id FROM appointments
+                       WHERE appointment_date = ?
+                         AND deleted_at IS NULL
+                         AND status NOT IN ('cancelled', 'no_show')
+                         AND start_time < ?
+                         AND end_time > ?";
+        $overlapParams = [$date, $endTime, $startTime];
+        if ($excludeAppointmentId) {
+            $overlapSql .= ' AND id != ?';
+            $overlapParams[] = $excludeAppointmentId;
+        }
+        if ($lock) {
+            $overlapSql .= ' FOR UPDATE';
+        }
+        $overlapping = Database::fetchAll($overlapSql, $overlapParams);
+
+        foreach ($overlapping as $row) {
+            if ((int) ($row['doctor_id'] ?? 0) === $doctorId) {
+                throw new RuntimeException(
+                    'This doctor already has an appointment in this time slot. Please choose another time.'
+                );
+            }
+        }
+
+        if (count($overlapping) >= self::MAX_APPOINTMENTS_PER_SLOT) {
+            throw new RuntimeException(
+                'This time slot is full (maximum ' . self::MAX_APPOINTMENTS_PER_SLOT . ' appointments). Please choose another time.'
+            );
+        }
+    }
+
     public function isSlotAvailable(
         int $doctorId,
         string $date,
@@ -143,26 +191,12 @@ class AppointmentService
         ?int $excludeAppointmentId = null,
         bool $lock = false
     ): bool {
-        $sql = "SELECT id FROM appointments
-                WHERE doctor_id = ?
-                  AND appointment_date = ?
-                  AND deleted_at IS NULL
-                  AND status NOT IN ('cancelled', 'no_show')
-                  AND start_time < ?
-                  AND end_time > ?";
-        $params = [$doctorId, $date, $endTime, $startTime];
-
-        if ($excludeAppointmentId) {
-            $sql .= ' AND id != ?';
-            $params[] = $excludeAppointmentId;
+        try {
+            $this->assertSlotBookable($doctorId, $date, $startTime, $endTime, $excludeAppointmentId, $lock);
+            return true;
+        } catch (RuntimeException $e) {
+            return false;
         }
-
-        $sql .= ' LIMIT 1';
-        if ($lock) {
-            $sql .= ' FOR UPDATE';
-        }
-
-        return Database::fetch($sql, $params) === null;
     }
 
     public function changeStatus(int $appointmentId, string $status, ?string $remarks = null): void
