@@ -2,6 +2,7 @@
 
 namespace App\Middleware;
 
+use App\Controllers\LabMasterController;
 use App\Core\Auth;
 use App\Core\Request;
 use App\Core\Response;
@@ -17,5 +18,8 @@ class AuthMiddleware
             }
             Response::redirect(App::url('login'));
         }
+
+        // Ensure Lab Master table + admin menu permissions exist
+        LabMasterController::ensureReady();
     }
 }

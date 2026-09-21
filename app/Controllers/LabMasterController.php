@@ -2,6 +2,8 @@
 
 namespace App\Controllers;
 
+use App\Core\Auth;
+use App\Core\Database;
 use App\Core\DataTable;
 use App\Core\Request;
 
@@ -11,7 +13,7 @@ class LabMasterController extends \App\Core\Controller
 
     public function index(Request $request): void
     {
-        $this->ensureSchema();
+        self::ensureReady();
         $this->view('modules/lab-masters/index', [
             'title' => 'Lab Master',
             'pageTitle' => 'Lab Master',
@@ -20,7 +22,7 @@ class LabMasterController extends \App\Core\Controller
 
     public function datatable(Request $request): void
     {
-        $this->ensureSchema();
+        self::ensureReady();
         DataTable::make($request, [
             'from' => 'lab_masters lm',
             'columns' => ['lm.id', 'lm.name', 'lm.is_active'],
@@ -38,7 +40,7 @@ class LabMasterController extends \App\Core\Controller
 
     public function create(Request $request): void
     {
-        $this->ensureSchema();
+        self::ensureReady();
         $this->view('modules/lab-masters/form', [
             'title' => 'Add Lab',
             'pageTitle' => 'Add Lab',
@@ -48,7 +50,7 @@ class LabMasterController extends \App\Core\Controller
 
     public function store(Request $request): void
     {
-        $this->ensureSchema();
+        self::ensureReady();
         $data = $this->validate($request, ['name' => 'required|max:150']);
         $payload = [
             'name' => trim((string) $data['name']),
@@ -61,7 +63,7 @@ class LabMasterController extends \App\Core\Controller
 
     public function edit(Request $request, string $id): void
     {
-        $this->ensureSchema();
+        self::ensureReady();
         $this->view('modules/lab-masters/form', [
             'title' => 'Edit Lab',
             'pageTitle' => 'Edit Lab',
@@ -71,7 +73,7 @@ class LabMasterController extends \App\Core\Controller
 
     public function update(Request $request, string $id): void
     {
-        $this->ensureSchema();
+        self::ensureReady();
         $old = $this->requireRow('lab_masters', $id, 'Lab');
         $data = $this->validate($request, ['name' => 'required|max:150']);
         $payload = [
@@ -85,18 +87,21 @@ class LabMasterController extends \App\Core\Controller
 
     public function destroy(Request $request, string $id): void
     {
-        $this->ensureSchema();
+        self::ensureReady();
         $this->softDelete($request, 'lab_masters', $id, 'lab_masters');
     }
 
-    private function ensureSchema(): void
+    /**
+     * Ensure lab_masters table + admin/super_admin permissions exist (safe to call often).
+     */
+    public static function ensureReady(): void
     {
         static $ready = false;
         if ($ready) {
             return;
         }
 
-        \App\Core\Database::connection()->exec(
+        Database::connection()->exec(
             "CREATE TABLE IF NOT EXISTS lab_masters (
               id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
               name VARCHAR(150) NOT NULL,
@@ -108,6 +113,50 @@ class LabMasterController extends \App\Core\Controller
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
         );
 
+        $now = date('Y-m-d H:i:s');
+        $actions = ['view', 'add', 'edit', 'delete'];
+        $permissionIds = [];
+        foreach ($actions as $action) {
+            $slug = 'lab_masters.' . $action;
+            $existing = Database::fetch('SELECT id FROM permissions WHERE slug = ?', [$slug]);
+            if ($existing) {
+                $permissionIds[] = (int) $existing['id'];
+                continue;
+            }
+            $permissionIds[] = (int) Database::insert('permissions', [
+                'module' => 'lab_masters',
+                'action' => $action,
+                'slug' => $slug,
+                'name' => 'Lab Masters - ' . ucfirst($action),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+
+        foreach (['super_admin', 'admin'] as $roleSlug) {
+            $role = Database::fetch('SELECT id FROM roles WHERE slug = ?', [$roleSlug]);
+            if (!$role) {
+                continue;
+            }
+            foreach ($permissionIds as $pid) {
+                Database::query(
+                    'INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)',
+                    [(int) $role['id'], $pid]
+                );
+            }
+        }
+
+        // Doctor can view labs (for dropdowns later)
+        $doctor = Database::fetch('SELECT id FROM roles WHERE slug = ?', ['doctor']);
+        $viewPerm = Database::fetch('SELECT id FROM permissions WHERE slug = ?', ['lab_masters.view']);
+        if ($doctor && $viewPerm) {
+            Database::query(
+                'INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)',
+                [(int) $doctor['id'], (int) $viewPerm['id']]
+            );
+        }
+
+        Auth::clearPermissionCache();
         $ready = true;
     }
 }

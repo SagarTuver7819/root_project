@@ -96,6 +96,11 @@ class Auth
         return self::$user;
     }
 
+    public static function clearPermissionCache(): void
+    {
+        self::$permissions = null;
+    }
+
     public static function permissions(): array
     {
         if (self::$permissions !== null) {
