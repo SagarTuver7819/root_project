@@ -45,6 +45,64 @@ $doctorName = static function (?string $name): string {
 
 $highlightId = $_GET['id'] ?? '';
 $highlightCode = $_GET['highlight'] ?? $_GET['code'] ?? '';
+$queueView = in_array(($queueView ?? 'sheet'), ['board', 'sheet'], true) ? $queueView : 'sheet';
+
+$sheetRows = [];
+$serial = 1;
+foreach (($queue ?? []) as $row) {
+    $age = null;
+    if (!empty($row['age'])) {
+        $age = (int) $row['age'];
+    } elseif (!empty($row['dob'])) {
+        try {
+            $age = (new DateTimeImmutable((string) $row['dob']))->diff(new DateTimeImmutable('today'))->y;
+        } catch (Throwable $e) {
+            $age = null;
+        }
+    }
+    $genderRaw = strtolower(trim((string) ($row['gender'] ?? '')));
+    $mf = $genderRaw === 'male' ? 'm' : ($genderRaw === 'female' ? 'f' : ($genderRaw !== '' ? substr($genderRaw, 0, 1) : ''));
+    $notes = trim((string) ($row['visit_reason'] ?? ''));
+    if ($notes === '' && !empty($row['treatment_name'])) {
+        $notes = (string) $row['treatment_name'];
+    }
+    if ($notes === '' && !empty($row['notes'])) {
+        $notes = (string) $row['notes'];
+    }
+    $docLabel = doctor_label((string) ($row['doctor_name'] ?? ''));
+    if ($docLabel !== '' && $notes !== '' && stripos($notes, $docLabel) === false) {
+        $notes .= ' · ' . $docLabel;
+    } elseif ($notes === '' && $docLabel !== '') {
+        $notes = $docLabel;
+    }
+    $notesLower = strtolower($notes . ' ' . (string) ($row['notes'] ?? ''));
+    $hasOpg = str_contains($notesLower, 'opg');
+    $status = (string) ($row['status'] ?? 'scheduled');
+    $statusColor = $queueMeta[$status]['color'] ?? '#94A3B8';
+    $doctorColor = trim((string) ($row['doctor_color'] ?? ''));
+    if ($doctorColor === '') {
+        $doctorColor = doctor_calendar_color((int) ($row['doctor_id'] ?? 0));
+    }
+    $sheetRows[] = [
+        'serial' => $serial++,
+        'row' => $row,
+        'age' => $age,
+        'mf' => $mf,
+        'notes' => $notes,
+        'has_opg' => $hasOpg,
+        'status' => $status,
+        'status_color' => $statusColor,
+        'doctor_color' => $doctorColor,
+        'ref' => trim((string) ($row['reference_doctor_name'] ?? '')),
+        'is_match' => ($highlightId && (string) $row['id'] === (string) $highlightId)
+            || ($highlightCode && (string) $row['appointment_code'] === (string) $highlightCode),
+    ];
+}
+
+$filterQs = http_build_query(array_filter([
+    'date' => $date ?? date('Y-m-d'),
+    'doctor_id' => $doctorId ?? ($lockedDoctorId ?? null),
+]));
 ?>
 
 <style>
@@ -328,6 +386,96 @@ $highlightCode = $_GET['highlight'] ?? $_GET['code'] ?? '';
     display: block;
     margin-bottom: 0.4rem;
 }
+
+/* Spreadsheet / BOOK-style list */
+.queue-view-toggle .btn.active {
+    background: #0f766e;
+    border-color: #0f766e;
+    color: #fff;
+}
+.queue-sheet-card {
+    border: 1px solid #c5cdd8;
+    border-radius: 0.35rem;
+    overflow: hidden;
+    background: #fff;
+}
+.queue-sheet-wrap {
+    overflow-x: auto;
+    max-height: calc(100vh - 250px);
+}
+.queue-sheet-table {
+    width: 100%;
+    margin: 0;
+    border-collapse: collapse;
+    font-family: "Segoe UI", Arial, sans-serif;
+    font-size: 13px;
+    min-width: 980px;
+    table-layout: auto;
+}
+.queue-sheet-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #e8eaed;
+    color: #202124;
+    font-weight: 700;
+    text-align: center;
+    padding: 8px 10px;
+    border: 1px solid #b0b7c3;
+    white-space: nowrap;
+}
+.queue-sheet-table tbody td {
+    padding: 6px 10px;
+    border: 1px solid #d0d5dd;
+    vertical-align: middle;
+    background: #fff;
+    text-align: center;
+}
+.queue-sheet-table tbody tr:nth-child(even) td:not(.qs-notes):not(.qs-opg) {
+    background: #fafbfc;
+}
+.queue-sheet-table tbody tr.qs-highlight td {
+    outline: 2px solid #00AEEF;
+    outline-offset: -2px;
+}
+.queue-sheet-table .qs-num,
+.queue-sheet-table .qs-mf,
+.queue-sheet-table .qs-age {
+    text-align: center;
+    white-space: nowrap;
+}
+.queue-sheet-table .qs-notes {
+    font-weight: 600;
+    min-width: 220px;
+    max-width: none;
+    text-align: center;
+}
+.queue-sheet-table .qs-opg {
+    text-align: center;
+    font-weight: 700;
+    text-transform: lowercase;
+}
+.queue-sheet-table .qs-opg.has-opg {
+    background: #f6ad55 !important;
+    color: #7b341e;
+}
+.queue-sheet-table a {
+    color: inherit;
+    text-decoration: none;
+}
+.queue-sheet-table a:hover {
+    text-decoration: underline;
+    color: #0f766e;
+}
+.queue-sheet-empty {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: #94a3b8;
+}
+.queue-sheet-hint {
+    font-size: 0.8rem;
+    color: #64748b;
+}
 </style>
 
 <form method="get" action="<?= app_url('queue') ?>" class="card content-card mb-4 queue-filter-card">
@@ -337,7 +485,7 @@ $highlightCode = $_GET['highlight'] ?? $_GET['code'] ?? '';
                 <label class="form-label">Queue Date</label>
                 <input class="form-control" type="date" name="date" value="<?= e($date ?? date('Y-m-d')) ?>">
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <label class="form-label">Doctor Filter</label>
                 <?php $lockedDoctorId = $lockedDoctorId ?? null; ?>
                 <select class="form-select" name="doctor_id" id="queueDoctor" <?= $lockedDoctorId ? 'disabled' : '' ?>>
@@ -353,9 +501,23 @@ $highlightCode = $_GET['highlight'] ?? $_GET['code'] ?? '';
                 <?php endif; ?>
             </div>
             <div class="col-md-2">
+                <label class="form-label">View</label>
+                <input type="hidden" name="view" value="<?= e($queueView) ?>">
+                <div class="btn-group w-100 queue-view-toggle" role="group">
+                    <a class="btn btn-outline-secondary <?= $queueView === 'sheet' ? 'active' : '' ?>"
+                       href="<?= app_url('queue?' . http_build_query(array_filter(['date' => $date ?? date('Y-m-d'), 'doctor_id' => $doctorId ?? ($lockedDoctorId ?? null), 'view' => 'sheet']))) ?>">
+                        <i class="bi bi-table me-1"></i>Sheet
+                    </a>
+                    <a class="btn btn-outline-secondary <?= $queueView === 'board' ? 'active' : '' ?>"
+                       href="<?= app_url('queue?' . http_build_query(array_filter(['date' => $date ?? date('Y-m-d'), 'doctor_id' => $doctorId ?? ($lockedDoctorId ?? null), 'view' => 'board']))) ?>">
+                        <i class="bi bi-kanban me-1"></i>Board
+                    </a>
+                </div>
+            </div>
+            <div class="col-md-2">
                 <button class="btn btn-primary w-100"><i class="bi bi-arrow-repeat me-1"></i>Filter</button>
             </div>
-            <div class="col-md-3 d-flex justify-content-md-end align-items-end">
+            <div class="col-md-2 d-flex justify-content-md-end align-items-end">
                 <div class="queue-total-chip" title="Total patients today">
                     <div class="queue-total-meta">
                         <span class="queue-total-label">Today's Patients</span>
@@ -365,9 +527,89 @@ $highlightCode = $_GET['highlight'] ?? $_GET['code'] ?? '';
                 </div>
             </div>
         </div>
+        <?php if ($queueView === 'sheet'): ?>
+            <div class="queue-sheet-hint mt-2">Sheet view = BOOK list style (date, OPD, name, m/f, age, treatment, OPG, mobile, ref). Board toggle for old kanban.</div>
+        <?php endif; ?>
     </div>
 </form>
 
+<?php if ($queueView === 'sheet'): ?>
+<div class="card content-card queue-sheet-card mb-4">
+    <div class="queue-sheet-wrap">
+        <table class="queue-sheet-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Date</th>
+                    <th>OPD</th>
+                    <th>Name</th>
+                    <th>M/F</th>
+                    <th>Age</th>
+                    <th>Treatment / Notes</th>
+                    <th>OPG</th>
+                    <th>Mo Number</th>
+                    <th>Ref</th>
+                    <th>Status</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody>
+            <?php if ($sheetRows === []): ?>
+                <tr>
+                    <td colspan="12" class="queue-sheet-empty">
+                        <i class="bi bi-inbox d-block mb-1" style="font-size:1.6rem"></i>
+                        No patients for this date
+                    </td>
+                </tr>
+            <?php else: ?>
+                <?php foreach ($sheetRows as $item):
+                    $row = $item['row'];
+                    $aptDate = !empty($row['appointment_date'])
+                        ? date('j-n-Y', strtotime((string) $row['appointment_date']))
+                        : '';
+                ?>
+                <tr class="<?= !empty($item['is_match']) ? 'qs-highlight' : '' ?>" id="sheet-apt-<?= e((string) $row['id']) ?>">
+                    <td class="qs-num"><?= (int) $item['serial'] ?></td>
+                    <td><?= e($aptDate) ?></td>
+                    <td><?= e((string) ($row['patient_code'] ?? '')) ?></td>
+                    <td>
+                        <a href="<?= app_url('patients/' . ($row['patient_id'] ?? '')) ?>">
+                            <?= e((string) ($row['patient_name'] ?? '')) ?>
+                        </a>
+                    </td>
+                    <td class="qs-mf"><?= e((string) $item['mf']) ?></td>
+                    <td class="qs-age"><?= $item['age'] !== null ? e((string) $item['age']) : '' ?></td>
+                    <td class="qs-notes" style="background: <?= e($item['doctor_color']) ?>33;">
+                        <?= e((string) $item['notes']) ?>
+                    </td>
+                    <td class="qs-opg <?= !empty($item['has_opg']) ? 'has-opg' : '' ?>">
+                        <?= !empty($item['has_opg']) ? 'opg' : '' ?>
+                    </td>
+                    <td><?= e((string) ($row['mobile'] ?? '')) ?></td>
+                    <td><?= e((string) $item['ref']) ?></td>
+                    <td>
+                        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:<?= e($item['status_color']) ?>;margin-right:4px;"></span>
+                        <?= e($queueMeta[$item['status']]['name'] ?? ucfirst(str_replace('_', ' ', $item['status']))) ?>
+                    </td>
+                    <td><?= e(format_time($row['start_time'] ?? null)) ?></td>
+                </tr>
+                <?php endforeach; ?>
+            <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const highlighted = document.querySelector('.qs-highlight');
+    if (highlighted) {
+        setTimeout(function () {
+            highlighted.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 200);
+    }
+});
+</script>
+<?php else: ?>
 <div class="kanban-board" id="kanbanBoard">
 <?php
 $columnKeys = ['scheduled', 'confirmed', 'waiting', 'checked_in', 'with_doctor', 'completed', 'cancelled'];
@@ -424,13 +666,13 @@ foreach ($columnKeys as $status):
                 $todayDate = $date ?? date('Y-m-d');
                 $patientRegDate = !empty($row['patient_reg_date']) ? substr((string) $row['patient_reg_date'], 0, 10) : '';
                 $patientCreatedAt = !empty($row['patient_created_at']) ? substr((string) $row['patient_created_at'], 0, 10) : '';
-                $isNewPatient = ($patientRegDate === $todayDate) || ($patientCreatedAt === $todayDate) || (!empty($bookingInfo['case_type']) && $bookingInfo['case_type'] === 'new');
-                $slotEnd = format_time($row['end_time'] ?? null);
-                $visitReason = trim((string) ($row['visit_reason'] ?? ''));
                 $bookingInfo = \App\Services\BookingService::statusForPatient(
                     !empty($row['patient_id']) ? (int) $row['patient_id'] : null,
                     $date ?? date('Y-m-d')
                 );
+                $isNewPatient = ($patientRegDate === $todayDate) || ($patientCreatedAt === $todayDate) || (!empty($bookingInfo['case_type']) && $bookingInfo['case_type'] === 'new');
+                $slotEnd = format_time($row['end_time'] ?? null);
+                $visitReason = trim((string) ($row['visit_reason'] ?? ''));
             ?>
                 <div class="kanban-card <?= $isMatch ? 'highlighted-card' : '' ?>"
                      draggable="true"
@@ -552,7 +794,6 @@ foreach ($columnKeys as $status):
 document.addEventListener('DOMContentLoaded', function () {
     let draggedCard = null;
 
-    // Attach drag events to cards
     function initCardDrag(card) {
         card.addEventListener('dragstart', function (e) {
             draggedCard = this;
@@ -570,7 +811,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     document.querySelectorAll('.kanban-card').forEach(initCardDrag);
 
-    // Attach dropzone events to column bodies
     document.querySelectorAll('.kanban-column-body').forEach(zone => {
         zone.addEventListener('dragover', function (e) {
             e.preventDefault();
@@ -605,24 +845,15 @@ document.addEventListener('DOMContentLoaded', function () {
             const targetZone = this;
             const cardEl = draggedCard;
 
-            // Perform AJAX Status Update
             RootsApp.post('<?= app_url('appointments') ?>/' + appointmentId + '/status', { status: targetStatus })
                 .done(function (res) {
                     toastr.success(res.message || 'Status updated to ' + targetStatus.replace(/_/g, ' '));
-                    
-                    // Update card status attribute
                     cardEl.dataset.status = targetStatus;
-                    
-                    // Remove empty placeholder if present
                     const emptyMsg = targetZone.querySelector('.kanban-empty');
                     if (emptyMsg) {
                         emptyMsg.remove();
                     }
-
-                    // Append card to target column body
                     targetZone.appendChild(cardEl);
-
-                    // Update column counters
                     updateCounters();
                 })
                 .fail(function (xhr) {
@@ -633,14 +864,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function updateCounters() {
         document.querySelectorAll('.kanban-column').forEach(col => {
-            const status = col.dataset.status;
             const count = col.querySelectorAll('.kanban-card').length;
             const badge = col.querySelector('.kanban-count-badge');
             if (badge) badge.textContent = count;
         });
     }
 
-    // Scroll to highlighted card if passed in URL
     const highlightedCard = document.querySelector('.highlighted-card');
     if (highlightedCard) {
         setTimeout(function() {
@@ -649,3 +878,4 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 </script>
+<?php endif; ?>

@@ -310,17 +310,22 @@ class AppointmentController extends \App\Core\Controller
             'queue' => Database::fetchAll(
                 'SELECT a.*, p.name AS patient_name, p.mobile, p.patient_code, p.age, p.dob, p.gender,
                         p.allergies, p.blood_group, p.registration_date AS patient_reg_date, p.created_at AS patient_created_at,
-                        d.name AS doctor_name,
+                        d.name AS doctor_name, d.calendar_color AS doctor_color,
+                        rd.name AS reference_doctor_name,
                         tm.name AS treatment_name, tm.default_price AS treatment_price
                  FROM appointments a
                  INNER JOIN patients p ON p.id = a.patient_id
                  INNER JOIN doctors d ON d.id = a.doctor_id
+                 LEFT JOIN reference_doctors rd ON rd.id = p.reference_doctor_id
                  LEFT JOIN treatment_masters tm ON tm.id = a.treatment_master_id
                  WHERE ' . implode(' AND ', $where) . '
                  ORDER BY a.start_time ASC, a.created_at ASC',
                 $params
             ),
             'bookingFee' => BookingService::amount(),
+            'queueView' => in_array($request->query('view'), ['board', 'sheet'], true)
+                ? $request->query('view')
+                : 'sheet',
         ]);
     }
 
