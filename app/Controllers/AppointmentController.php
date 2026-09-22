@@ -329,6 +329,45 @@ class AppointmentController extends \App\Core\Controller
         ]);
     }
 
+    public function walkInExisting(Request $request): void
+    {
+        $data = $this->validate($request, [
+            'patient_id' => 'required',
+            'doctor_id' => 'required',
+        ]);
+        $patientId = (int) $data['patient_id'];
+        $doctorId = (int) $data['doctor_id'];
+        $reason = trim((string) $request->input('reason', ''));
+
+        $patient = Database::fetch(
+            'SELECT id, patient_code, name FROM patients WHERE id = ? AND deleted_at IS NULL',
+            [$patientId]
+        );
+        if (!$patient) {
+            $this->jsonError('Patient not found.');
+        }
+
+        try {
+            $id = $this->appointments->assignWalkIn(
+                $patientId,
+                $doctorId,
+                $reason !== '' ? $reason : 'Existing patient walk-in'
+            );
+        } catch (\Throwable $e) {
+            $this->jsonError($e->getMessage());
+        }
+
+        $this->audit('appointments', 'walk_in', $id, null, [
+            'patient_id' => $patientId,
+            'doctor_id' => $doctorId,
+        ]);
+
+        $this->jsonSuccess('Patient added to Waiting queue.', [
+            'id' => $id,
+            'redirect' => app_url('queue?view=sheet&highlight=' . urlencode((string) ($patient['patient_code'] ?? ''))),
+        ]);
+    }
+
     private function requireOwnAppointment(string $id): array
     {
         $appointment = $this->requireRow('appointments', $id, 'Appointment');

@@ -1,6 +1,7 @@
 <?php
-$actions = '<a href="' . app_url('calendar') . '" class="btn btn-primary"><i class="bi bi-calendar3 me-1"></i>Calendar</a>'
-    . '<a href="' . app_url('appointments') . '" class="btn btn-light me-2"><i class="bi bi-list-ul me-1"></i>Appointments</a>';
+$actions = '<button type="button" class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#walkinAddPatientModal"><i class="bi bi-person-plus me-1"></i>Add Patient</button>'
+    . '<a href="' . app_url('calendar') . '" class="btn btn-primary"><i class="bi bi-calendar3 me-1"></i>Calendar</a>'
+    . '<a href="' . app_url('payments') . '" class="btn btn-light me-2"><i class="bi bi-wallet2 me-1"></i>Payments</a>';
 require __DIR__ . '/../../components/page-header.php';
 
 $queueMeta = [

@@ -7,13 +7,22 @@ require __DIR__ . '/../../components/page-header.php';
 $patient = $patient ?? [];
 $isEdit = !empty($patient['id']);
 $isFrontDesk = Auth::hasRole('receptionist')
-    && !Auth::hasRole('super_admin')
-    && !Auth::hasRole('admin');
+    || Auth::hasRole('admin')
+    || Auth::hasRole('super_admin')
+    || (($_GET['from'] ?? '') === 'walkin');
+if ($isEdit) {
+    // Keep edit form as before for non-receptionist roles
+    $isFrontDesk = Auth::hasRole('receptionist')
+        && !Auth::hasRole('super_admin')
+        && !Auth::hasRole('admin');
+}
 
 $gender = old('gender', $patient['gender'] ?? '');
 $refSelected = old('reference_doctor_id', $patient['reference_doctor_id'] ?? '');
 $formAction = $isEdit ? app_url('patients/' . $patient['id']) : app_url('patients');
-$cancelUrl = $isEdit ? app_url('patients/' . $patient['id']) : app_url('patients');
+$cancelUrl = $isEdit
+    ? app_url('patients/' . $patient['id'])
+    : ((($_GET['from'] ?? '') === 'walkin') ? app_url('queue') : app_url('patients'));
 $canQuickAddRef = can('patients.edit') || can('patients.add') || can('reference_doctors.add');
 
 $renderReferenceDoctorField = static function (string $selected, array $doctors, bool $canQuickAdd): void {

@@ -77,20 +77,20 @@ $hasSuggested = $suggestedItems !== [];
         <div class="col-md-3"><strong>Status</strong><div><?= status_badge($quotation['status'] ?? 'draft') ?></div></div>
     </div>
 
-    <div class="table-responsive">
-        <table class="table table-hover align-middle">
+    <div class="table-responsive patient-tab-table-wrap">
+        <table class="table table-hover align-middle patient-tab-table text-center w-100">
             <thead>
                 <tr>
                     <th>#</th>
                     <th>Treatment / Procedure</th>
                     <th>Teeth</th>
                     <th>Doctor</th>
-                    <th class="text-end">Amount (₹)</th>
+                    <th>Amount (₹)</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if ($items === []): ?>
-                    <tr><td colspan="5" class="text-center text-muted py-4">No estimate lines found.</td></tr>
+                    <tr><td colspan="5" class="text-muted py-4">No estimate lines found.</td></tr>
                 <?php endif; ?>
                 <?php foreach ($items as $i => $row): ?>
                     <tr>
@@ -98,7 +98,7 @@ $hasSuggested = $suggestedItems !== [];
                         <td><?= e($row['description'] ?? '') ?></td>
                         <td><?= e($row['teeth'] ?? '—') ?></td>
                         <td><?= e(doctor_label($row['doctor_name'] ?? '—')) ?></td>
-                        <td class="text-end"><?= e(number_format((float) ($row['amount'] ?? 0), 2)) ?></td>
+                        <td><?= e(number_format((float) ($row['amount'] ?? 0), 2)) ?></td>
                     </tr>
                 <?php endforeach; ?>
             </tbody>
@@ -106,17 +106,17 @@ $hasSuggested = $suggestedItems !== [];
                 <tfoot>
                     <tr>
                         <th colspan="4" class="text-end">Gross</th>
-                        <th class="text-end">₹<?= e(number_format((float) ($quotation['gross_amount'] ?? 0), 2)) ?></th>
+                        <th>₹<?= e(number_format((float) ($quotation['gross_amount'] ?? 0), 2)) ?></th>
                     </tr>
                     <?php if ((float) ($quotation['discount'] ?? 0) > 0): ?>
                         <tr>
                             <th colspan="4" class="text-end">Discount</th>
-                            <th class="text-end text-danger">- ₹<?= e(number_format((float) $quotation['discount'], 2)) ?></th>
+                            <th class="text-danger">- ₹<?= e(number_format((float) $quotation['discount'], 2)) ?></th>
                         </tr>
                     <?php endif; ?>
                     <tr>
                         <th colspan="4" class="text-end">Net Estimate</th>
-                        <th class="text-end text-primary fs-5">₹<?= e(number_format((float) ($quotation['net_amount'] ?? 0), 2)) ?></th>
+                        <th class="text-primary fs-5">₹<?= e(number_format((float) ($quotation['net_amount'] ?? 0), 2)) ?></th>
                     </tr>
                 </tfoot>
             <?php endif; ?>

@@ -207,10 +207,11 @@ class QuotationController extends \App\Core\Controller
     private function upsertDraftFromSuggestedPlan(int $patientId): int
     {
         $suggested = Database::fetchAll(
-            'SELECT id, description, doctor_id, teeth, sort_order
+            "SELECT id, description, doctor_id, teeth, sort_order
              FROM patient_suggested_treatments
              WHERE patient_id = ?
-             ORDER BY sort_order ASC, id ASC',
+               AND (status IS NULL OR status = '' OR status = 'pending')
+             ORDER BY sort_order ASC, id ASC",
             [$patientId]
         );
         if ($suggested === []) {
@@ -394,8 +395,11 @@ class QuotationController extends \App\Core\Controller
             );
         } elseif ($patientId > 0) {
             $suggested = Database::fetchAll(
-                'SELECT id, description, doctor_id, teeth, sort_order
-                 FROM patient_suggested_treatments WHERE patient_id = ? ORDER BY sort_order ASC, id ASC',
+                "SELECT id, description, doctor_id, teeth, sort_order
+                 FROM patient_suggested_treatments
+                 WHERE patient_id = ?
+                   AND (status IS NULL OR status = '' OR status = 'pending')
+                 ORDER BY sort_order ASC, id ASC",
                 [$patientId]
             );
             if ($suggested !== []) {

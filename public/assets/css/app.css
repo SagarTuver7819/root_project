@@ -1972,6 +1972,25 @@ table.dataTable,
     opacity: .75;
 }
 
+.patient-tab-table-wrap {
+    width: 100%;
+}
+.patient-tab-table {
+    width: 100% !important;
+    margin: 0 auto;
+}
+.patient-tab-table thead th,
+.patient-tab-table tbody td,
+.patient-tab-table tfoot th,
+.patient-tab-table tfoot td {
+    text-align: center !important;
+    vertical-align: middle;
+}
+.patient-tab-table thead th {
+    text-transform: none !important;
+    letter-spacing: normal;
+}
+
 .suggested-plan-head {
     margin-bottom: 1rem;
 }

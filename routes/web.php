@@ -70,6 +70,8 @@ $router->group(['middleware' => ['auth']], function ($router) {
     $router->post('/patients/{id}/documents/{docId}/delete', [PatientController::class, 'deleteDocument'], ['csrf', 'permission:patients.edit']);
     $router->post('/patients/{id}/clinical-chart', [PatientController::class, 'saveClinicalChart'], ['csrf', 'permission:patients.edit']);
     $router->post('/patients/{id}/suggested-plan', [PatientController::class, 'saveSuggestedPlan'], ['csrf', 'permission:patients.edit']);
+    $router->post('/patients/{id}/suggested-plan/{itemId}/complete', [PatientController::class, 'completeSuggestedTreatment'], ['csrf', 'permission:patients.edit']);
+    $router->post('/patients/{id}/suggested-plan/{itemId}/collect', [PatientController::class, 'collectSuggestedTreatmentPayment'], ['csrf', 'permission:patients.edit']);
     $router->get('/patients/{id}/quotation', [QuotationController::class, 'fromSuggestedPlan'], ['permission:quotations.add']);
 
     $router->get('/quotations', [QuotationController::class, 'index'], ['permission:quotations.view']);
@@ -93,6 +95,7 @@ $router->group(['middleware' => ['auth']], function ($router) {
     $router->post('/appointments/{id}/delete', [AppointmentController::class, 'destroy'], ['csrf', 'permission:appointments.delete']);
     $router->post('/appointments/{id}/status', [AppointmentController::class, 'changeStatus'], ['csrf', 'permission:appointments.status_change']);
     $router->get('/queue', [AppointmentController::class, 'queue'], ['permission:appointments.view']);
+    $router->post('/queue/walk-in', [AppointmentController::class, 'walkInExisting'], ['csrf', 'permission:appointments.add']);
 
     $router->get('/doctors', [DoctorController::class, 'index'], ['permission:doctors.view']);
     $router->get('/doctors/datatable', [DoctorController::class, 'datatable'], ['permission:doctors.view']);

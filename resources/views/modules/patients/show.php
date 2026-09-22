@@ -6,13 +6,11 @@ require __DIR__ . '/../../components/page-header.php';
 $tabs = [
     'clinical' => 'Clinical Chart',
     'plan' => 'Treatment Plan',
+    'completed' => 'Treatment Completed',
     'estimate' => 'Treatment Estimate',
-    'history' => 'History',
     'appointments' => 'Appointments',
-    'treatments' => 'Treatments',
     'prescriptions' => 'Prescriptions',
     'payments' => 'Payments',
-    'documents' => 'Documents',
 ];
 $hasTreatmentPlan = !empty($hasTreatmentPlan);
 $openTabs = ['clinical', 'plan'];

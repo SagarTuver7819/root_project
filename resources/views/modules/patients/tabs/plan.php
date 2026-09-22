@@ -84,8 +84,8 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
     </div>
 
     <div class="suggested-plan-head">
-        <h3 class="h5 mb-1">Suggested Treatment Plan</h3>
-        <p class="text-muted small mb-0">Tooth-wise hierarchy — ek tooth, ek line. Pehli line compulsory. Doctor select kari ne calendar book kari shakay.</p>
+        <h3 class="h5 mb-1">Suggested Treatment Plan <span class="badge text-bg-warning ms-1">Pending</span></h3>
+        <p class="text-muted small mb-0">Tooth-wise hierarchy — ek tooth, ek line. Pehli line compulsory. Treatment Complete kariye to Completed tab ma jase.</p>
     </div>
 
     <div id="suggestedPlanRows" class="suggested-plan-list">
@@ -131,6 +131,11 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
                         <?php if ($canEdit && can('appointments.add')): ?>
                             <button type="button" class="btn btn-outline-primary suggested-plan-book">
                                 <i class="bi bi-calendar-plus me-1"></i>Add appointment in calendar
+                            </button>
+                        <?php endif; ?>
+                        <?php if ($canEdit): ?>
+                            <button type="button" class="btn btn-success suggested-plan-complete">
+                                <i class="bi bi-check2-circle me-1"></i>Treatment Complete
                             </button>
                         <?php endif; ?>
                         <?php if ($canEdit && $n > $minRows): ?>
@@ -181,6 +186,9 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
                         <i class="bi bi-calendar-plus me-1"></i>Add appointment in calendar
                     </button>
                 <?php endif; ?>
+                <button type="button" class="btn btn-success suggested-plan-complete">
+                    <i class="bi bi-check2-circle me-1"></i>Treatment Complete
+                </button>
                 <button type="button" class="btn btn-outline-danger suggested-plan-remove" title="Remove">&times;</button>
             </div>
         </div>
@@ -207,6 +215,54 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
                 <button type="button" class="btn btn-primary" id="toothNoteSave">Save Note</button>
             </div>
         </div>
+    </div>
+</div>
+
+<div class="modal fade" id="treatmentCompleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <form class="modal-content" id="treatmentCompleteForm">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-check2-circle me-2"></i>Treatment Complete — <span id="tcTreatmentLabel"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <?= csrf_field() ?>
+                <input type="hidden" id="tcItemId" value="">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label">Remarks</label>
+                        <textarea class="form-control" id="tcRemarks" rows="2" placeholder="Treatment remarks..."></textarea>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Next Appointment Date</label>
+                        <input class="form-control" type="date" id="tcNextApptDate">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Next Appointment Time</label>
+                        <input class="form-control" type="time" id="tcNextApptTime" step="60">
+                        <div class="form-text">Date + time fill kariye to Calendar ma auto book thase.</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Consent Book Number</label>
+                        <input class="form-control" type="text" id="tcConsentBook" placeholder="Consent book no." maxlength="100">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Specific Instruction for Patient</label>
+                        <textarea class="form-control" id="tcPatientInstruction" rows="2" placeholder="Instructions for patient..."></textarea>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Payment Amount for this Treatment (₹)</label>
+                        <input class="form-control" type="number" step="0.01" min="0" id="tcAmount" placeholder="0.00">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-success" id="tcSubmitBtn">
+                    <i class="bi bi-check2 me-1"></i>Ok — Mark Completed
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -459,7 +515,7 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
 
   list.addEventListener('click', function (e) {
     const row = e.target.closest('.suggested-plan-row');
-    if (row && !e.target.closest('.suggested-plan-remove, .suggested-plan-book')) {
+    if (row && !e.target.closest('.suggested-plan-remove, .suggested-plan-book, .suggested-plan-complete')) {
       setActiveRow(row);
     }
   });
@@ -561,6 +617,92 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
     ensureExtraRow();
   });
 
+  const completeUrlBase = <?= json_encode(rtrim(app_url('patients/' . $patientId . '/suggested-plan'), '/') . '/') ?>;
+  const tcModalEl = document.getElementById('treatmentCompleteModal');
+  const tcModal = (tcModalEl && window.bootstrap) ? new bootstrap.Modal(tcModalEl) : null;
+  let tcActiveRow = null;
+
+  function openCompleteModal(row) {
+    const itemId = (row.querySelector('input[name*="[id]"]')?.value || '').trim();
+    const desc = (row.querySelector('.suggested-plan-desc')?.value || '').trim();
+    if (!desc) {
+      toastr.warning('Pehla treatment lakho.');
+      row.querySelector('.suggested-plan-desc')?.focus();
+      return;
+    }
+    if (!itemId) {
+      toastr.warning('Pehla plan Save karo, pachhi Treatment Complete kari shakay.');
+      return;
+    }
+    tcActiveRow = row;
+    document.getElementById('tcItemId').value = itemId;
+    document.getElementById('tcTreatmentLabel').textContent = desc;
+    document.getElementById('tcRemarks').value = '';
+    document.getElementById('tcNextApptDate').value = '';
+    document.getElementById('tcNextApptTime').value = '';
+    document.getElementById('tcPatientInstruction').value = '';
+    document.getElementById('tcAmount').value = '';
+    document.getElementById('tcConsentBook').value = '';
+    tcModal && tcModal.show();
+  }
+
+  document.getElementById('treatmentCompleteForm')?.addEventListener('submit', function (e) {
+    e.preventDefault();
+    const itemId = document.getElementById('tcItemId').value;
+    if (!itemId) {
+      toastr.error('Treatment line not found.');
+      return;
+    }
+    const btn = document.getElementById('tcSubmitBtn');
+    if (btn) {
+      btn.disabled = true;
+      btn.dataset.original = btn.innerHTML;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+    }
+    const body = new FormData();
+    body.append('_token', window.CSRF_TOKEN || document.querySelector('#treatmentCompleteForm [name="_token"]')?.value || '');
+    body.append('remarks', document.getElementById('tcRemarks').value || '');
+    body.append('next_appointment_date', document.getElementById('tcNextApptDate').value || '');
+    body.append('next_appointment_time', document.getElementById('tcNextApptTime').value || '');
+    body.append('patient_instruction', document.getElementById('tcPatientInstruction').value || '');
+    body.append('amount', document.getElementById('tcAmount').value || '0');
+    body.append('consent_book_number', document.getElementById('tcConsentBook').value || '');
+
+    fetch(completeUrlBase + encodeURIComponent(itemId) + '/complete', {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Accept': 'application/json',
+        'X-CSRF-TOKEN': window.CSRF_TOKEN || ''
+      },
+      body: body
+    }).then(function (r) { return r.json().then(function (res) { return { ok: r.ok, res: res }; }); }).then(function (payload) {
+      const res = payload.res || {};
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = btn.dataset.original || 'Ok — Mark Completed';
+      }
+      const redirectTo = (res.data && res.data.redirect)
+        || <?= json_encode(app_url('patients/' . $patientId . '?tab=completed')) ?>;
+      if (res.success === false) {
+        toastr.error(res.message || 'Unable to complete treatment.');
+        return;
+      }
+      toastr.success(res.message || 'Treatment completed.');
+      tcModal && tcModal.hide();
+      if (tcActiveRow && tcActiveRow.parentNode) {
+        tcActiveRow.remove();
+      }
+      setTimeout(function () { window.location.href = redirectTo; }, 300);
+    }).catch(function () {
+      toastr.error('Unable to complete treatment.');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = btn.dataset.original || 'Ok — Mark Completed';
+      }
+    });
+  });
+
   list.addEventListener('click', function (e) {
     const remove = e.target.closest('.suggested-plan-remove');
     if (remove) {
@@ -570,6 +712,12 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
         reindex();
         paintChart();
       }
+      return;
+    }
+
+    const completeBtn = e.target.closest('.suggested-plan-complete');
+    if (completeBtn) {
+      openCompleteModal(completeBtn.closest('.suggested-plan-row'));
       return;
     }
 

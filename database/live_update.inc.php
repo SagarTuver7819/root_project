@@ -116,6 +116,46 @@ function roots_live_update(): array
         $log[] = 'OK patient_suggested_treatments.teeth';
     }
 
+    // Treatment Complete / Payments collection columns
+    if ($tableExists('patient_suggested_treatments')) {
+        $pstCompletionCols = [
+            'status' => "VARCHAR(30) NOT NULL DEFAULT 'pending'",
+            'remarks' => 'TEXT NULL',
+            'next_appointment_date' => 'DATE NULL',
+            'next_appointment_time' => 'TIME NULL',
+            'patient_instruction' => 'TEXT NULL',
+            'amount' => 'DECIMAL(12,2) NOT NULL DEFAULT 0',
+            'consent_book_number' => 'VARCHAR(100) NULL',
+            'completed_at' => 'DATETIME NULL',
+            'completed_by' => 'INT UNSIGNED NULL',
+            'payment_status' => "VARCHAR(30) NOT NULL DEFAULT 'pending'",
+            'paid_amount' => 'DECIMAL(12,2) NOT NULL DEFAULT 0',
+            'payment_bill_id' => 'INT UNSIGNED NULL',
+        ];
+        foreach ($pstCompletionCols as $col => $def) {
+            if (!$columnExists('patient_suggested_treatments', $col)) {
+                Database::query("ALTER TABLE patient_suggested_treatments ADD COLUMN `{$col}` {$def}");
+                $log[] = "Added patient_suggested_treatments.{$col}";
+            } else {
+                $log[] = "OK patient_suggested_treatments.{$col}";
+            }
+        }
+
+        try {
+            Database::query(
+                "UPDATE patient_suggested_treatments
+                 SET payment_status = 'pending'
+                 WHERE LOWER(IFNULL(status, '')) = 'completed'
+                   AND IFNULL(amount, 0) > 0
+                   AND IFNULL(paid_amount, 0) < IFNULL(amount, 0)
+                   AND LOWER(IFNULL(payment_status, '')) NOT IN ('pending', 'partial')"
+            );
+            $log[] = 'OK patient_suggested_treatments payment_status backfill';
+        } catch (Throwable $e) {
+            $log[] = 'WARN payment_status backfill: ' . $e->getMessage();
+        }
+    }
+
     if (!$tableExists('quotations')) {
         Database::connection()->exec(
             "CREATE TABLE IF NOT EXISTS quotations (
