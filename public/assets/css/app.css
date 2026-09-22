@@ -1462,23 +1462,63 @@ table.dataTable,
 
 .fc .fc-event {
     border: 0 !important;
-    border-radius: .45rem !important;
+    border-radius: .5rem !important;
     font-size: .74rem;
-    padding: 3px 6px !important;
+    padding: 4px 7px !important;
     box-shadow: 0 4px 10px rgba(15, 23, 42, .12);
     font-weight: 600;
     line-height: 1.25;
-    margin: 1px 2px !important;
+    margin: 1px 3px !important;
+    overflow: hidden;
+    z-index: 2 !important;
 }
 
 .fc .fc-event .fc-event-main {
     color: #fff;
-    padding: 1px 0;
+    padding: 0;
+    overflow: hidden;
 }
 
 .fc .fc-event .fc-event-time,
 .fc .fc-event .fc-event-title {
-    padding: 0 1px;
+    padding: 0;
+}
+
+.fc .fc-ev {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    overflow: hidden;
+    color: #fff;
+}
+
+.fc .fc-ev-time {
+    font-size: .68rem;
+    font-weight: 700;
+    opacity: .95;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fc .fc-ev-name {
+    font-size: .78rem;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fc .fc-ev-sub,
+.fc .fc-ev-phone {
+    font-size: .68rem;
+    font-weight: 500;
+    opacity: .92;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .fc .fc-entry-remark {
@@ -1493,11 +1533,14 @@ table.dataTable,
 
 .fc .fc-timegrid-now-indicator-line {
     border-width: 2px;
+    z-index: 4 !important;
+    pointer-events: none;
 }
 
 .fc .fc-timegrid-now-indicator-arrow {
     border-top-color: #EF4444;
     border-bottom-color: #EF4444;
+    z-index: 5 !important;
 }
 
 .dashboard-calendar {

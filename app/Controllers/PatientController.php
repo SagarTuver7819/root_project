@@ -1588,12 +1588,8 @@ class PatientController extends Controller
         $reasonParts = array_filter([
             trim((string) ($row['description'] ?? '')),
             trim((string) ($row['teeth'] ?? '')),
-            $remarks !== '' ? $remarks : null,
         ]);
         $visitReason = implode(' · ', $reasonParts) ?: 'Follow-up after treatment';
-        if ($instruction !== '') {
-            $visitReason .= ' | Instruction: ' . $instruction;
-        }
 
         return (new AppointmentService())->book([
             'patient_id' => $patientId,

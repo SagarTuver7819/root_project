@@ -506,6 +506,36 @@ document.addEventListener('DOMContentLoaded', function () {
       eventDisplay: 'block',
       dayMaxEvents: true,
       stickyHeaderDates: true,
+      eventContent: function (arg) {
+        const p = arg.event.extendedProps || {};
+        const esc = function (s) {
+          return String(s || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        };
+        if ((p.entry_type || '') === 'doctor_remark') {
+          return {
+            html: '<div class="fc-ev"><div class="fc-ev-time">' + esc(arg.timeText) + '</div>'
+              + '<div class="fc-ev-name">' + esc(arg.event.title) + '</div></div>'
+          };
+        }
+        const name = p.patient_name || arg.event.title || '';
+        let sub = p.subtitle || p.treatment_name || '';
+        if (!sub && p.visit_reason) {
+          sub = String(p.visit_reason).split('|')[0].trim();
+          if (sub.length > 60) sub = sub.slice(0, 57) + '…';
+        }
+        const mobile = p.mobile || '';
+        let html = '<div class="fc-ev">';
+        html += '<div class="fc-ev-time">' + esc(arg.timeText) + '</div>';
+        html += '<div class="fc-ev-name">' + esc(name) + '</div>';
+        if (sub) html += '<div class="fc-ev-sub">' + esc(sub) + '</div>';
+        if (mobile) html += '<div class="fc-ev-phone">' + esc(mobile) + '</div>';
+        html += '</div>';
+        return { html: html };
+      },
       events: function (info, success, failure) {
         const params = new URLSearchParams({
           start: info.startStr,

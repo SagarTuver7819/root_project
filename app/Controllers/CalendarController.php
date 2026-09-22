@@ -93,14 +93,26 @@ class CalendarController extends \App\Core\Controller
             $mobile = trim((string) ($row['mobile'] ?? ''));
             $doctorColor = doctor_calendar_color((int) ($row['doctor_pk'] ?? $row['doctor_id'] ?? 0), $row);
 
+            $rawReason = trim((string) ($row['visit_reason'] ?? ''));
+            // Calendar card mate Instruction / long suffix hide
+            if (($cut = stripos($rawReason, '| Instruction:')) !== false) {
+                $rawReason = trim(substr($rawReason, 0, $cut));
+            }
+            if (($cut = stripos($rawReason, '|Instruction:')) !== false) {
+                $rawReason = trim(substr($rawReason, 0, $cut));
+            }
+            // Too long reason truncate for card
+            if (mb_strlen($rawReason) > 60) {
+                $rawReason = mb_substr($rawReason, 0, 57) . '…';
+            }
+            $subtitle = $treatment !== '' ? $treatment : $rawReason;
+
             if ($isRemark) {
                 $title = $remarkText;
                 $color = '#DC2626';
                 $className = 'fc-entry-remark';
             } else {
-                // Google Calendar style: Patient · Treatment/Test · Phone
-                $reason = trim((string) ($row['visit_reason'] ?? $row['notes'] ?? ''));
-                $parts = array_filter([$patient, $treatment ?: ($reason ?: null), $mobile ?: null]);
+                $parts = array_filter([$patient, $subtitle !== '' ? $subtitle : null]);
                 $title = implode(' · ', $parts) ?: doctor_label($row['doctor_name'] ?? '');
                 $color = $doctorColor;
                 $className = 'fc-status-' . str_replace('_', '-', (string) $row['status']);
@@ -124,6 +136,7 @@ class CalendarController extends \App\Core\Controller
                     'patient_name' => $patient,
                     'doctor_name' => doctor_label($row['doctor_name'] ?? ''),
                     'treatment_name' => $treatment,
+                    'subtitle' => $subtitle,
                     'visit_reason' => $row['visit_reason'] ?? null,
                     'notes' => $row['notes'],
                     'mobile' => $mobile ?: null,
