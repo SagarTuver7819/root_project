@@ -582,7 +582,7 @@ class PatientController extends Controller
                     'SELECT id, name FROM doctors WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name ASC'
                 );
                 $savedItems = Database::fetchAll(
-                    "SELECT id, description, doctor_id, teeth, sort_order, status
+                    "SELECT id, description, doctor_id, teeth, amount, sort_order, status
                      FROM patient_suggested_treatments
                      WHERE patient_id = ?
                        AND (status IS NULL OR status = '' OR status = 'pending')
@@ -978,6 +978,7 @@ class PatientController extends Controller
                 'description' => $description,
                 'doctor_id' => (int) ($item['doctor_id'] ?? 0) ?: null,
                 'teeth' => trim((string) ($item['teeth'] ?? '')),
+                'amount' => max(0, (float) ($item['amount'] ?? 0)),
             ];
         }
 
@@ -1005,6 +1006,7 @@ class PatientController extends Controller
                 'description' => $item['description'],
                 'doctor_id' => $item['doctor_id'],
                 'teeth' => $item['teeth'] !== '' ? $item['teeth'] : null,
+                'amount' => $item['amount'],
                 'sort_order' => $sort,
                 'status' => 'pending',
                 'updated_by' => Auth::id(),
@@ -1346,7 +1348,7 @@ class PatientController extends Controller
         }
 
         $now = date('Y-m-d H:i:s');
-        $payAmount = max(0, $amount);
+        $payAmount = $amount > 0 ? $amount : max(0, (float) ($row['amount'] ?? 0));
         Database::update('patient_suggested_treatments', [
             'status' => 'completed',
             'remarks' => $remarks !== '' ? $remarks : null,
@@ -1369,7 +1371,7 @@ class PatientController extends Controller
 
         AuditService::log('patients', 'treatment_complete', $patientId, $row, [
             'item_id' => $rowId,
-            'amount' => $amount,
+            'amount' => $payAmount,
             'consent_book_number' => $consent,
             'appointment_id' => $appointmentId,
             'next_appointment_date' => $nextDate,

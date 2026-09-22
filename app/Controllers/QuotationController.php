@@ -207,7 +207,7 @@ class QuotationController extends \App\Core\Controller
     private function upsertDraftFromSuggestedPlan(int $patientId): int
     {
         $suggested = Database::fetchAll(
-            "SELECT id, description, doctor_id, teeth, sort_order
+            "SELECT id, description, doctor_id, teeth, amount, sort_order
              FROM patient_suggested_treatments
              WHERE patient_id = ?
                AND (status IS NULL OR status = '' OR status = 'pending')
@@ -279,7 +279,8 @@ class QuotationController extends \App\Core\Controller
             if ($desc === '') {
                 continue;
             }
-            $price = $this->matchTreatmentPrice($desc, $masters);
+            $planAmount = $this->money($row['amount'] ?? 0);
+            $price = $planAmount > 0 ? $planAmount : $this->matchTreatmentPrice($desc, $masters);
             $items[] = [
                 'description' => $desc,
                 'teeth' => trim((string) ($row['teeth'] ?? '')),
@@ -395,7 +396,7 @@ class QuotationController extends \App\Core\Controller
             );
         } elseif ($patientId > 0) {
             $suggested = Database::fetchAll(
-                "SELECT id, description, doctor_id, teeth, sort_order
+                "SELECT id, description, doctor_id, teeth, amount, sort_order
                  FROM patient_suggested_treatments
                  WHERE patient_id = ?
                    AND (status IS NULL OR status = '' OR status = 'pending')

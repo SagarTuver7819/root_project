@@ -9,7 +9,7 @@ $treatmentSuggestions = $treatmentSuggestions ?? [];
 $minRows = 5;
 $rows = $savedItems;
 while (count($rows) < $minRows) {
-    $rows[] = ['id' => '', 'description' => '', 'doctor_id' => '', 'teeth' => ''];
+    $rows[] = ['id' => '', 'description' => '', 'doctor_id' => '', 'teeth' => '', 'amount' => ''];
 }
 
 $selectedTeeth = [];
@@ -85,7 +85,7 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
 
     <div class="suggested-plan-head">
         <h3 class="h5 mb-1">Suggested Treatment Plan <span class="badge text-bg-warning ms-1">Pending</span></h3>
-        <p class="text-muted small mb-0">Tooth-wise hierarchy — ek tooth, ek line. Pehli line compulsory. Treatment Complete kariye to Completed tab ma jase.</p>
+        <p class="text-muted small mb-0">Tooth-wise hierarchy — ek tooth, ek line. Pehli line compulsory. Treatment name baju Amount lakho — Estimate ane Completed ma auto aavse.</p>
     </div>
 
     <div id="suggestedPlanRows" class="suggested-plan-list">
@@ -95,6 +95,15 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
             $rowId = (string) ($row['id'] ?? '');
             $desc = (string) ($row['description'] ?? '');
             $docId = (string) ($row['doctor_id'] ?? '');
+            $amt = $row['amount'] ?? '';
+            if ($amt !== '' && $amt !== null) {
+                $amt = number_format((float) $amt, 2, '.', '');
+                if ((float) $amt <= 0) {
+                    $amt = '';
+                }
+            } else {
+                $amt = '';
+            }
             $teeth = trim((string) ($row['teeth'] ?? ''));
             $toothList = $teeth === '' ? [] : array_values(array_filter(array_map('trim', explode(',', $teeth))));
             $primaryTooth = $toothList[0] ?? '';
@@ -107,15 +116,30 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
                     <div class="suggested-plan-tooth-label<?= $primaryTooth === '' ? ' d-none' : '' ?>">
                         <i class="bi bi-tooth me-1"></i><span class="tooth-label-text"><?= $primaryTooth !== '' ? e($toothLabel($primaryTooth)) : '' ?></span>
                     </div>
-                    <input
-                        class="form-control suggested-plan-desc"
-                        type="text"
-                        name="items[<?= (int) $index ?>][description]"
-                        value="<?= e($desc) ?>"
-                        placeholder="Treatment <?= (int) $n ?>"
-                        <?= $n === 1 ? 'required' : '' ?>
-                        <?= $canEdit ? '' : 'readonly' ?>
-                    >
+                    <div class="suggested-plan-desc-amount">
+                        <input
+                            class="form-control suggested-plan-desc"
+                            type="text"
+                            name="items[<?= (int) $index ?>][description]"
+                            value="<?= e($desc) ?>"
+                            placeholder="Treatment <?= (int) $n ?>"
+                            <?= $n === 1 ? 'required' : '' ?>
+                            <?= $canEdit ? '' : 'readonly' ?>
+                        >
+                        <div class="suggested-plan-amount-wrap">
+                            <span class="suggested-plan-amount-prefix">₹</span>
+                            <input
+                                class="form-control suggested-plan-amount"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                name="items[<?= (int) $index ?>][amount]"
+                                value="<?= e($amt) ?>"
+                                placeholder="Amount"
+                                <?= $canEdit ? '' : 'readonly' ?>
+                            >
+                        </div>
+                    </div>
                     <div class="suggested-plan-teeth">
                         <?php foreach ($toothList as $tooth): ?>
                             <span class="tooth-chip"><?= e($tooth) ?></span>
@@ -172,7 +196,13 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
             <div class="suggested-plan-tooth-label d-none">
                 <i class="bi bi-tooth me-1"></i><span class="tooth-label-text"></span>
             </div>
-            <input class="form-control suggested-plan-desc" type="text" name="items[__INDEX__][description]" placeholder="Treatment __NUM__">
+            <div class="suggested-plan-desc-amount">
+                <input class="form-control suggested-plan-desc" type="text" name="items[__INDEX__][description]" placeholder="Treatment __NUM__">
+                <div class="suggested-plan-amount-wrap">
+                    <span class="suggested-plan-amount-prefix">₹</span>
+                    <input class="form-control suggested-plan-amount" type="number" step="0.01" min="0" name="items[__INDEX__][amount]" placeholder="Amount">
+                </div>
+            </div>
             <div class="suggested-plan-teeth"></div>
             <div class="suggested-plan-actions">
                 <select class="form-select no-select2 suggested-plan-doctor" name="items[__INDEX__][doctor_id]">
@@ -641,7 +671,8 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
     document.getElementById('tcNextApptDate').value = '';
     document.getElementById('tcNextApptTime').value = '';
     document.getElementById('tcPatientInstruction').value = '';
-    document.getElementById('tcAmount').value = '';
+    const planAmt = (row.querySelector('.suggested-plan-amount')?.value || '').trim();
+    document.getElementById('tcAmount').value = planAmt !== '' ? planAmt : '';
     document.getElementById('tcConsentBook').value = '';
     tcModal && tcModal.show();
   }
