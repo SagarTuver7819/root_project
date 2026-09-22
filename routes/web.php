@@ -30,7 +30,7 @@ use App\Controllers\VisitController;
 use App\Core\Request;
 use App\Core\Response;
 
-$router->get('/', fn (Request $request) => Response::redirect(app_url('dashboard')));
+$router->get('/', fn (Request $request) => Response::redirect(app_url('calendar')));
 
 $router->group(['middleware' => ['guest']], function ($router) {
     $router->get('/login', [AuthController::class, 'showLogin']);

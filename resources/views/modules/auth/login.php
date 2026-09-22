@@ -5,7 +5,7 @@
         <p class="auth-welcome-sub">Sign in to manage appointments, clinical care and billing.</p>
     </div>
 
-    <form method="post" action="<?= app_url('login') ?>" class="ajax-form auth-form" data-redirect="<?= app_url('dashboard') ?>">
+    <form method="post" action="<?= app_url('login') ?>" class="ajax-form auth-form" data-redirect="<?= app_url('calendar') ?>">
         <?= csrf_field() ?>
         <div class="mb-3 auth-anim-item" style="--d:.18s">
             <label class="form-label">Username / Email</label>

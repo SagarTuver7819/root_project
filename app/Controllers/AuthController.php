@@ -39,10 +39,7 @@ class AuthController extends Controller
 
         AuditService::log('auth', 'login', Auth::id());
 
-        $home = 'dashboard';
-        if (Auth::hasRole('receptionist') || Auth::hasRole('admin') || Auth::hasRole('super_admin')) {
-            $home = 'calendar';
-        }
+        $home = 'calendar';
 
         if ($request->isAjax()) {
             $this->jsonSuccess('Login successful.', ['redirect' => App::url($home)]);

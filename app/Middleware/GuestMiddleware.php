@@ -12,7 +12,7 @@ class GuestMiddleware
     public function handle(Request $request): void
     {
         if (Auth::check()) {
-            Response::redirect(App::url('dashboard'));
+            Response::redirect(App::url('calendar'));
         }
     }
 }
