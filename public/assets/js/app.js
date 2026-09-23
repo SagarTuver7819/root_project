@@ -137,6 +137,9 @@
                 headers: csrfHeaders(),
                 success: function (res) {
                     if (res && res.success === false) {
+                        if (handleDoctorOverlapConfirm($form, res)) {
+                            return;
+                        }
                         toastr.error((res && res.message) || 'Unable to process your request.');
                         return;
                     }
@@ -175,10 +178,17 @@
                 },
                 error: function (xhr) {
                     const res = xhr.responseJSON || {};
+                    if (handleDoctorOverlapConfirm($form, res)) {
+                        return;
+                    }
                     toastr.error(res.message || 'Unable to process your request.');
                     if (res.errors) {
                         Object.keys(res.errors).forEach(function (key) {
-                            toastr.warning(res.errors[key][0]);
+                            if (key === 'code') return;
+                            const err = res.errors[key];
+                            if (Array.isArray(err) && err[0]) {
+                                toastr.warning(err[0]);
+                            }
                         });
                     }
                 },
@@ -187,6 +197,39 @@
                 }
             });
         });
+
+        function handleDoctorOverlapConfirm($form, res) {
+            const code = res && res.errors && res.errors.code;
+            if (code !== 'doctor_overlap') {
+                return false;
+            }
+            const msg = (res && res.message)
+                || 'Aa time e aa doctor ni already appointment che.';
+            Swal.fire({
+                icon: 'warning',
+                title: 'Already booked',
+                html: '<div style="text-align:left">' + $('<div>').text(msg).html()
+                    + '<br><br><strong>Tori pan book kari do?</strong></div>',
+                showCancelButton: true,
+                confirmButtonColor: '#f59e0b',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Ha, book kari do',
+                cancelButtonText: 'Cancel'
+            }).then(function (result) {
+                if (!result.isConfirmed) {
+                    return;
+                }
+                let $force = $form.find('input[name="force_overlap"]');
+                if (!$force.length) {
+                    $force = $('<input type="hidden" name="force_overlap" value="1">');
+                    $form.append($force);
+                } else {
+                    $force.val('1');
+                }
+                $form.trigger('submit');
+            });
+            return true;
+        }
 
         function initSelect2(scope) {
             if (!window.jQuery || !jQuery.fn.select2) {

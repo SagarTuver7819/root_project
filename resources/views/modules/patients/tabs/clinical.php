@@ -69,8 +69,14 @@ $medicalHistory = $parseClinicalChecklist($chart['drug_list'] ?? '', $medicalCon
 $habitData = $parseClinicalChecklist($chart['habit'] ?? '', $habitOptions, 'items');
 ?>
 
-<form method="post" action="<?= app_url('patients/' . $patientId . '/clinical-chart') ?>" class="ajax-form clinical-chart-form" data-redirect="<?= e(app_url('patients/' . $patientId . '?tab=plan')) ?>" data-patient-id="<?= (int) $patientId ?>" data-upload-url="<?= e(app_url('patients/' . $patientId . '/documents')) ?>">
+<form method="post" action="<?= app_url('patients/' . $patientId . '/clinical-chart') ?>" class="clinical-chart-form" data-patient-id="<?= (int) $patientId ?>" data-upload-url="<?= e(app_url('patients/' . $patientId . '/documents')) ?>" data-plan-url="<?= e(app_url('patients/' . $patientId . '?tab=plan')) ?>">
     <?= csrf_field() ?>
+    <input type="hidden" name="autosave" id="clinicalAutosaveFlag" value="1">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div class="text-muted small mb-0">Type kariye tyare auto-save thay — Save button dabavvano jarur nathi.</div>
+        <div class="small fw-semibold" id="clinicalAutosaveStatus" aria-live="polite"></div>
+    </div>
 
     <div class="row g-3">
         <div class="col-12">
@@ -285,8 +291,11 @@ $habitData = $parseClinicalChecklist($chart['habit'] ?? '', $habitOptions, 'item
         </div>
 
         <?php if ($canEdit): ?>
-        <div class="col-12">
-            <button type="submit" class="btn btn-primary">Save Clinical Chart</button>
+        <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
+            <a href="<?= app_url('patients/' . $patientId . '?tab=plan') ?>" class="btn btn-primary" id="clinicalGoPlanBtn">
+                Continue to Treatment Plan
+            </a>
+            <span class="text-muted small">Chart auto-save thay che. Plan tab par jata pehla last changes save thai jase.</span>
         </div>
         <?php endif; ?>
     </div>
@@ -297,6 +306,92 @@ $habitData = $parseClinicalChecklist($chart['habit'] ?? '', $habitOptions, 'item
 (function () {
   const root = document.querySelector('.clinical-chart-form');
   if (!root) return;
+
+  const statusEl = document.getElementById('clinicalAutosaveStatus');
+  const flag = document.getElementById('clinicalAutosaveFlag');
+  let timer = null;
+  let saving = false;
+  let pending = false;
+
+  function setStatus(text, ok) {
+    if (!statusEl) return;
+    statusEl.textContent = text || '';
+    statusEl.className = 'small fw-semibold ' + (ok === true ? 'text-success' : (ok === false ? 'text-danger' : 'text-muted'));
+  }
+
+  function saveChart(opts) {
+    opts = opts || {};
+    const goPlan = !!opts.goPlan;
+    if (saving) {
+      pending = true;
+      return Promise.resolve();
+    }
+    saving = true;
+    if (flag) flag.value = goPlan ? '0' : '1';
+    setStatus(goPlan ? 'Saving…' : 'Auto-saving…');
+
+    const body = new FormData(root);
+    return fetch(root.getAttribute('action'), {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Accept': 'application/json',
+        'X-CSRF-TOKEN': window.CSRF_TOKEN || ''
+      },
+      body: body
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (res && res.success === false) {
+        setStatus(res.message || 'Save fail', false);
+        if (window.toastr) toastr.error(res.message || 'Clinical chart save fail.');
+        return;
+      }
+      setStatus('Saved ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), true);
+      if (goPlan) {
+        const planUrl = (res.data && res.data.redirect) || root.getAttribute('data-plan-url');
+        if (planUrl) window.location.href = planUrl;
+      }
+    }).catch(function () {
+      setStatus('Save fail — again try', false);
+    }).finally(function () {
+      saving = false;
+      if (flag) flag.value = '1';
+      if (pending) {
+        pending = false;
+        scheduleSave();
+      }
+    });
+  }
+
+  function scheduleSave() {
+    if (timer) clearTimeout(timer);
+    setStatus('Typing…');
+    timer = setTimeout(function () { saveChart(); }, 700);
+  }
+
+  root.addEventListener('input', function (e) {
+    if (e.target.closest('.clinical-doc-file')) return;
+    scheduleSave();
+  });
+  root.addEventListener('change', function (e) {
+    if (e.target.closest('.clinical-doc-file')) return;
+    scheduleSave();
+  });
+
+  document.getElementById('clinicalGoPlanBtn')?.addEventListener('click', function (e) {
+    e.preventDefault();
+    if (timer) clearTimeout(timer);
+    saveChart({ goPlan: true });
+  });
+
+  // Tab change / leave page — flush pending save
+  window.addEventListener('beforeunload', function () {
+    if (!pending && !timer) return;
+    if (flag) flag.value = '1';
+    const body = new FormData(root);
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(root.getAttribute('action'), body);
+    }
+  });
 
   root.querySelectorAll('.clinical-doc-file').forEach(function (input) {
     const type = input.dataset.type || '';

@@ -605,10 +605,10 @@ table.dataTable,
 
 .table thead th {
     white-space: nowrap;
-    font-size: .78rem;
-    font-weight: 700;
-    letter-spacing: .02em;
-    text-transform: uppercase;
+    font-size: .8rem;
+    font-weight: 600;
+    letter-spacing: .01em;
+    text-transform: none;
     color: #64748b;
     background: #f8fafc;
     border-bottom: 1px solid #e2e8f0 !important;
@@ -1462,21 +1462,46 @@ table.dataTable,
 
 .fc .fc-event {
     border: 0 !important;
-    border-radius: .5rem !important;
-    font-size: .74rem;
-    padding: 4px 7px !important;
-    box-shadow: 0 4px 10px rgba(15, 23, 42, .12);
+    border-radius: .45rem !important;
+    font-size: .72rem;
+    padding: 3px 6px !important;
+    box-shadow: 0 3px 8px rgba(15, 23, 42, .14);
     font-weight: 600;
-    line-height: 1.25;
-    margin: 1px 3px !important;
+    line-height: 1.2;
+    margin: 1px 1px !important;
     overflow: hidden;
-    z-index: 2 !important;
+    z-index: auto;
+    min-height: 52px;
+    cursor: pointer;
+}
+
+.fc .fc-timegrid-event-harness-inset .fc-event,
+.fc .fc-timegrid-event.fc-event-mirror {
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .18);
+}
+
+/* Side-by-side overlaps: keep each card wide enough to read + click */
+.fc .fc-timegrid-event-harness {
+    margin-right: 1px;
+    min-width: 96px;
+}
+
+.fc .fc-timegrid-event-harness-inset {
+    /* FC sets inset; leave a small gap so neighbor stays visible */
+    inset-inline-end: 3px !important;
+}
+
+.fc .fc-event:hover {
+    z-index: 20 !important;
+    filter: brightness(1.06);
+    outline: 2px solid rgba(255, 255, 255, .55);
 }
 
 .fc .fc-event .fc-event-main {
     color: #fff;
     padding: 0;
     overflow: hidden;
+    height: 100%;
 }
 
 .fc .fc-event .fc-event-time,
@@ -1491,10 +1516,19 @@ table.dataTable,
     min-width: 0;
     overflow: hidden;
     color: #fff;
+    height: 100%;
+}
+
+.fc .fc-ev-k {
+    opacity: .75;
+    font-weight: 600;
+    font-size: .62rem;
+    text-transform: uppercase;
+    letter-spacing: .02em;
 }
 
 .fc .fc-ev-time {
-    font-size: .68rem;
+    font-size: .66rem;
     font-weight: 700;
     opacity: .95;
     white-space: nowrap;
@@ -1503,22 +1537,27 @@ table.dataTable,
 }
 
 .fc .fc-ev-name {
-    font-size: .78rem;
+    font-size: .8rem;
     font-weight: 700;
-    line-height: 1.2;
+    line-height: 1.15;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
+.fc .fc-ev-doc,
 .fc .fc-ev-sub,
 .fc .fc-ev-phone {
-    font-size: .68rem;
+    font-size: .7rem;
     font-weight: 500;
-    opacity: .92;
+    opacity: .96;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.fc .fc-appt-card {
+    border: 1px solid rgba(255, 255, 255, .22) !important;
 }
 
 .fc .fc-entry-remark {
@@ -2001,8 +2040,10 @@ table.dataTable,
     border-bottom: 2px solid transparent;
     border-radius: .5rem .5rem 0 0;
     font-weight: 500;
-    padding: .65rem 1rem;
+    padding: .55rem .7rem;
     background: transparent;
+    white-space: nowrap;
+    font-size: .9rem;
 }
 
 .patient-profile-tabs .nav-link:hover {
@@ -2013,6 +2054,38 @@ table.dataTable,
 .patient-profile-tabs .nav-link.is-locked {
     color: #94a3b8;
     opacity: .75;
+}
+
+.patient-profile-tabs .nav-link.tab-completed {
+    color: #15803d;
+    font-weight: 600;
+}
+
+.patient-profile-tabs .nav-link.tab-completed:hover {
+    color: #166534;
+    background: rgba(22, 163, 74, .1);
+}
+
+.patient-profile-tabs .nav-link.tab-completed.active {
+    color: #14532d;
+    background: rgba(22, 163, 74, .14);
+    border-bottom-color: #16a34a;
+}
+
+.patient-completed-tab {
+    border: 1px solid rgba(22, 163, 74, .28);
+    border-radius: .75rem;
+    background: linear-gradient(180deg, rgba(22, 163, 74, .08), rgba(255, 255, 255, .9) 48px);
+    padding: 1rem 1rem 1.15rem;
+}
+
+.patient-completed-table thead th {
+    background: rgba(22, 163, 74, .12) !important;
+    color: #14532d;
+}
+
+.patient-completed-table tbody tr.completed-treatment-row:hover {
+    background: rgba(22, 163, 74, .06);
 }
 
 .patient-tab-table-wrap {
@@ -2137,9 +2210,99 @@ table.dataTable,
     }
 }
 
+.suggested-plan-row.is-locked {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+.suggested-plan-row.is-locked .suggested-plan-desc,
+.suggested-plan-row.is-locked .suggested-plan-amount {
+    background: #f1f5f9;
+    cursor: not-allowed;
+}
+
 .suggested-plan-row.is-active {
     border-color: var(--primary-color);
     box-shadow: 0 0 0 3px rgba(0, 174, 239, .12);
+}
+
+.tc-complete-dialog {
+    width: 96vw;
+    max-width: 96vw;
+    margin: 1.5vh auto;
+    height: 97vh;
+}
+
+.tc-complete-dialog .modal-content {
+    height: 100%;
+    border-radius: .75rem;
+    overflow: hidden;
+}
+
+.tc-complete-body {
+    overflow: auto;
+    background: #fff;
+    height: calc(97vh - 110px);
+}
+
+.tc-complete-row {
+    min-height: 100%;
+}
+
+.tc-complete-form-col {
+    max-width: 320px;
+}
+
+.tc-cal-panel {
+    background: #fff !important;
+}
+
+.tc-doctor-calendar {
+    min-height: calc(97vh - 220px);
+    height: calc(97vh - 220px);
+    background: #fff;
+    border-radius: .5rem;
+}
+
+.tc-doctor-calendar .fc {
+    height: 100% !important;
+}
+
+.tc-doctor-calendar .fc .fc-toolbar-title {
+    font-size: 1.05rem !important;
+    font-weight: 700;
+}
+
+.tc-doctor-calendar .fc .fc-button {
+    border-radius: .65rem !important;
+    font-weight: 600;
+    font-size: .82rem !important;
+    text-transform: none !important;
+    padding: .4rem .8rem !important;
+}
+
+.tc-doctor-calendar .fc-event.tc-pick-slot {
+    z-index: 6 !important;
+    box-shadow: 0 0 0 2px rgba(14, 165, 233, .55), 0 6px 14px rgba(2, 132, 199, .35) !important;
+    font-weight: 700;
+}
+
+@media (max-width: 991.98px) {
+    .tc-complete-dialog {
+        width: 98vw;
+        max-width: 98vw;
+        height: 98vh;
+        margin: 1vh auto;
+    }
+
+    .tc-complete-form-col {
+        max-width: none;
+    }
+
+    .tc-doctor-calendar {
+        min-height: 520px;
+        height: 520px;
+    }
 }
 
 .suggested-plan-teeth {
@@ -2991,3 +3154,144 @@ a.kanban-patient-name:hover {
 .clinical-doc-delete {
     flex-shrink: 0;
 }
+
+/* ===== Responsive: all screens ===== */
+html, body {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+.app-content {
+    overflow-x: hidden;
+}
+
+@media (max-width: 991.98px) {
+    .app-header {
+        padding-left: .65rem;
+        padding-right: .65rem;
+        gap: .5rem;
+    }
+
+    .page-title {
+        font-size: 1rem;
+        max-width: 52vw;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .app-content {
+        padding: .85rem .75rem 1.25rem;
+    }
+
+    .page-header-bar,
+    .d-flex.flex-wrap.justify-content-between.align-items-center.gap-3.mb-3,
+    .d-flex.flex-wrap.justify-content-between.align-items-center.gap-3.mb-4 {
+        gap: .65rem !important;
+    }
+
+    .calendar-toolbar .row > [class*="col-"] {
+        margin-bottom: .5rem;
+    }
+
+    .fc .fc-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: .45rem;
+    }
+
+    .fc .fc-toolbar-chunk {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: .25rem;
+    }
+
+    .fc .fc-toolbar-title {
+        font-size: 1rem !important;
+        text-align: center;
+    }
+
+    .fc .fc-button {
+        padding: .28rem .55rem !important;
+        font-size: .78rem !important;
+    }
+
+    .patient-profile-tabs {
+        flex-wrap: nowrap !important;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+        padding-bottom: .15rem;
+    }
+
+    .patient-profile-tabs .nav-link {
+        flex: 0 0 auto;
+    }
+
+    .suggested-plan-actions .form-select {
+        min-width: 0;
+        max-width: none;
+        width: 100%;
+    }
+
+    .suggested-plan-actions .btn {
+        width: 100%;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .btn-profile .profile-meta {
+        display: none !important;
+    }
+
+    .dataTables_wrapper .dataTables_length,
+    .dataTables_wrapper .dataTables_filter {
+        float: none !important;
+        text-align: left !important;
+        margin-bottom: .5rem;
+    }
+
+    .dataTables_wrapper .dataTables_filter input {
+        width: 100% !important;
+        margin-left: 0 !important;
+    }
+
+    .fc .fc-timegrid-event-harness {
+        min-width: 0;
+    }
+
+    .fc .fc-event {
+        min-height: 48px;
+        font-size: .68rem;
+        padding: 3px 5px !important;
+    }
+
+    .fc .fc-ev-name {
+        font-size: .74rem;
+    }
+
+    .fc .fc-ev-doc,
+    .fc .fc-ev-sub,
+    .fc .fc-ev-phone {
+        font-size: .65rem;
+    }
+
+    .content-card .card-body,
+    .card .card-body {
+        padding: .85rem .8rem;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .app-content {
+        padding: .7rem .55rem 1rem;
+    }
+
+    .page-title {
+        max-width: 48vw;
+        font-size: .95rem;
+    }
+}
+

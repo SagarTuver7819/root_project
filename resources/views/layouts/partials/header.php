@@ -1,4 +1,10 @@
-<?php $user = auth_user(); $role = \App\Core\Auth::primaryRole(); ?>
+<?php
+$user = auth_user();
+$role = \App\Core\Auth::primaryRole();
+$userName = trim((string) ($user['name'] ?? ''));
+$roleName = trim((string) ($role['name'] ?? 'User'));
+$showRoleLine = $roleName !== '' && strcasecmp($userName, $roleName) !== 0;
+?>
 <header class="app-header">
     <div class="header-left">
         <button type="button" class="btn btn-icon" id="sidebarToggle" title="Toggle sidebar">
@@ -20,11 +26,13 @@
             <input type="text" id="quickPatientSearch" class="form-control form-control-sm" placeholder="Mobile / name / ID → Patient History">
         </div>
         <div class="dropdown">
-            <button class="btn btn-profile dropdown-toggle" data-bs-toggle="dropdown">
-                <span class="avatar"><?= e(strtoupper(substr($user['name'] ?? 'U', 0, 1))) ?></span>
+            <button class="btn btn-profile dropdown-toggle" data-bs-toggle="dropdown" aria-label="<?= e($userName !== '' ? $userName : 'Profile') ?>">
+                <span class="avatar"><?= e(strtoupper(substr($userName !== '' ? $userName : 'U', 0, 1))) ?></span>
                 <span class="profile-meta d-none d-sm-inline">
-                    <strong><?= e($user['name'] ?? '') ?></strong>
-                    <small><?= e($role['name'] ?? 'User') ?></small>
+                    <strong><?= e($userName !== '' ? $userName : 'User') ?></strong>
+                    <?php if ($showRoleLine): ?>
+                        <small><?= e($roleName) ?></small>
+                    <?php endif; ?>
                 </span>
             </button>
             <ul class="dropdown-menu dropdown-menu-end shadow">

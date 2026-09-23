@@ -1,15 +1,18 @@
 <?php
 $rows = $rows ?? [];
 ?>
+<div class="patient-completed-tab">
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
-        <h3 class="h5 mb-1">Treatment Completed</h3>
-        <p class="text-muted small mb-0">Completed treatments from Treatment Plan — click a row to view full detail.</p>
+        <h3 class="h5 mb-1 text-success">
+            <i class="bi bi-check2-circle me-1"></i>Treatment Completed
+        </h3>
+        <p class="text-muted small mb-0">Completed treatments — view only (edit nathi). Payment collect thay gayu hoy to <strong>Payment Done</strong> j dekhase — Pending nahi.</p>
     </div>
 </div>
 
-<div class="table-responsive patient-tab-table-wrap">
-    <table class="table table-hover align-middle patient-tab-table text-center w-100">
+<div class="table-responsive patient-tab-table-wrap patient-completed-table-wrap">
+    <table class="table table-hover align-middle patient-tab-table patient-completed-table text-center w-100">
         <thead>
             <tr>
                 <th>#</th>
@@ -31,9 +34,18 @@ $rows = $rows ?? [];
                 </tr>
             <?php endif; ?>
             <?php foreach ($rows as $i => $row):
-                $ps = strtolower((string) ($row['payment_status'] ?? 'pending'));
                 $amt = (float) ($row['amount'] ?? 0);
                 $paid = (float) ($row['paid_amount'] ?? 0);
+                // Prefer amounts — collected payment should never show as Pending
+                if ($amt <= 0) {
+                    $ps = 'none';
+                } elseif ($paid + 0.001 >= $amt) {
+                    $ps = 'paid';
+                } elseif ($paid > 0) {
+                    $ps = 'partial';
+                } else {
+                    $ps = 'pending';
+                }
                 $nd = $row['next_appointment_date'] ?? null;
                 $nt = $row['next_appointment_time'] ?? null;
                 $nextAppt = '—';
@@ -48,13 +60,14 @@ $rows = $rows ?? [];
                     : '—';
                 $rm = trim((string) ($row['remarks'] ?? ''));
                 $ins = trim((string) ($row['patient_instruction'] ?? ''));
-                $payLabel = $amt <= 0 ? '—' : ($ps === 'paid' ? 'Paid' : ($ps === 'partial' ? 'Partial' : 'Pending'));
+                $payLabel = $ps === 'none' ? '—' : ($ps === 'paid' ? 'Payment Done' : ($ps === 'partial' ? 'Partial' : 'Pending'));
             ?>
                 <tr
                     class="completed-treatment-row"
                     role="button"
                     tabindex="0"
                     style="cursor:pointer"
+                    title="View only — edit nathi"
                     data-treatment="<?= e((string) ($row['description'] ?? '')) ?>"
                     data-teeth="<?= e((string) ($row['teeth'] ?? '')) ?>"
                     data-doctor="<?= e(doctor_label($row['doctor_name'] ?? null)) ?>"
@@ -73,13 +86,15 @@ $rows = $rows ?? [];
                     <td><?= e(doctor_label($row['doctor_name'] ?? null)) ?></td>
                     <td><?= e(number_format($amt, 2)) ?></td>
                     <td>
-                        <?php
-                        if ($amt <= 0) {
-                            echo '—';
-                        } else {
-                            echo status_badge($ps === 'paid' ? 'paid' : ($ps === 'partial' ? 'partial' : 'pending'));
-                        }
-                        ?>
+                        <?php if ($ps === 'none'): ?>
+                            —
+                        <?php elseif ($ps === 'paid'): ?>
+                            <span class="badge text-bg-success">Payment Done</span>
+                        <?php elseif ($ps === 'partial'): ?>
+                            <span class="badge text-bg-info">Partial ₹<?= e(number_format($paid, 2)) ?></span>
+                        <?php else: ?>
+                            <span class="badge text-bg-warning">Pending</span>
+                        <?php endif; ?>
                     </td>
                     <td><?= e($row['consent_book_number'] ?? '—') ?></td>
                     <td><?= e($nextAppt) ?></td>
@@ -94,6 +109,7 @@ $rows = $rows ?? [];
             <?php endforeach; ?>
         </tbody>
     </table>
+</div>
 </div>
 
 <div class="modal fade" id="completedTreatmentViewModal" tabindex="-1" aria-hidden="true">
@@ -175,7 +191,15 @@ $rows = $rows ?? [];
     document.getElementById('ctvConsent').textContent = val('consent');
     document.getElementById('ctvAmount').textContent = val('amount', '0.00');
     document.getElementById('ctvPaid').textContent = val('paid', '0.00');
-    document.getElementById('ctvPayment').textContent = val('payment');
+    const payEl = document.getElementById('ctvPayment');
+    const payText = val('payment');
+    payEl.textContent = payText;
+    payEl.className = 'fw-semibold';
+    if (payText === 'Payment Done') {
+      payEl.classList.add('text-success');
+    } else if (payText === 'Pending') {
+      payEl.classList.add('text-warning');
+    }
     document.getElementById('ctvNextAppt').textContent = val('next-appt');
     document.getElementById('ctvRemarks').textContent = val('remarks');
     document.getElementById('ctvInstruction').textContent = val('instruction');

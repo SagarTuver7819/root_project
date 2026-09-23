@@ -23,6 +23,7 @@ class AppointmentService
             }
 
             $skipSlotCheck = !empty($data['skip_slot_check']) || $entryType === 'walk_in';
+            $forceOverlap = !empty($data['force_overlap']);
             if (!$skipSlotCheck) {
                 $this->assertSlotBookable(
                     (int) $data['doctor_id'],
@@ -30,7 +31,8 @@ class AppointmentService
                     (string) $data['start_time'],
                     (string) $data['end_time'],
                     null,
-                    true
+                    true,
+                    $forceOverlap
                 );
             }
 
@@ -138,8 +140,9 @@ class AppointmentService
     public const MAX_APPOINTMENTS_PER_SLOT = 9;
 
     /**
-     * Doctor-wise overlap block; same time slot allowed for different doctors.
-     * Hard cap: max 9 active appointments overlapping the same window.
+     * Doctor-wise overlap: by default throws DoctorSlotOverlapException (soft — UI can confirm).
+     * With $allowDoctorOverlap=true (after user confirms), same-doctor double book is allowed.
+     * Hard cap: max 9 active appointments overlapping the same window (always enforced).
      */
     public function assertSlotBookable(
         int $doctorId,
@@ -147,7 +150,8 @@ class AppointmentService
         string $startTime,
         string $endTime,
         ?int $excludeAppointmentId = null,
-        bool $lock = false
+        bool $lock = false,
+        bool $allowDoctorOverlap = false
     ): void {
         $startTime = $this->normalizeTime($startTime) ?: $startTime;
         $endTime = $this->normalizeTime($endTime) ?: $endTime;
@@ -168,11 +172,13 @@ class AppointmentService
         }
         $overlapping = Database::fetchAll($overlapSql, $overlapParams);
 
-        foreach ($overlapping as $row) {
-            if ((int) ($row['doctor_id'] ?? 0) === $doctorId) {
-                throw new RuntimeException(
-                    'This doctor already has an appointment in this time slot. Please choose another time.'
-                );
+        if (!$allowDoctorOverlap) {
+            foreach ($overlapping as $row) {
+                if ((int) ($row['doctor_id'] ?? 0) === $doctorId) {
+                    throw new DoctorSlotOverlapException(
+                        'Aa time e aa doctor ni already appointment che. Confirm kari ne tori pan book kari shakay.'
+                    );
+                }
             }
         }
 
@@ -192,7 +198,7 @@ class AppointmentService
         bool $lock = false
     ): bool {
         try {
-            $this->assertSlotBookable($doctorId, $date, $startTime, $endTime, $excludeAppointmentId, $lock);
+            $this->assertSlotBookable($doctorId, $date, $startTime, $endTime, $excludeAppointmentId, $lock, false);
             return true;
         } catch (RuntimeException $e) {
             return false;

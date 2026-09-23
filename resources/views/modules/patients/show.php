@@ -45,7 +45,7 @@ if (!$hasTreatmentPlan && !in_array($defaultTab, $openTabs, true)) {
             <?php $isLocked = !$hasTreatmentPlan && !in_array($key, $openTabs, true); ?>
             <li class="nav-item" role="presentation">
                 <button
-                    class="nav-link <?= $key === $defaultTab ? 'active' : '' ?><?= $isLocked ? ' is-locked' : '' ?>"
+                    class="nav-link <?= $key === $defaultTab ? 'active' : '' ?><?= $isLocked ? ' is-locked' : '' ?><?= $key === 'completed' ? ' tab-completed' : '' ?>"
                     type="button"
                     data-tab="<?= e($key) ?>"
                     data-locked="<?= $isLocked ? '1' : '0' ?>"

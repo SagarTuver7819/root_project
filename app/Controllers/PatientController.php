@@ -257,6 +257,8 @@ class PatientController extends Controller
                 $actions .= '</div>';
                 $row['registration_date'] = format_date($row['registration_date'] ?? null);
                 $row['status_badge'] = status_badge($row['is_active'] ? 'active' : 'inactive');
+                $gender = trim((string) ($row['gender'] ?? ''));
+                $row['gender'] = $gender !== '' ? ucfirst(strtolower($gender)) : '—';
                 $name = e($row['name'] ?? '');
                 if (can('patients.view')) {
                     $row['name'] = '<a class="fw-semibold text-decoration-none" href="' . app_url('patients/' . $row['id'] . '?tab=clinical') . '">' . $name . '</a>';
@@ -582,7 +584,7 @@ class PatientController extends Controller
                     'SELECT id, name FROM doctors WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name ASC'
                 );
                 $savedItems = Database::fetchAll(
-                    "SELECT id, description, doctor_id, teeth, amount, sort_order, status
+                    "SELECT id, description, doctor_id, teeth, amount, paid_amount, payment_status, sort_order, status
                      FROM patient_suggested_treatments
                      WHERE patient_id = ?
                        AND (status IS NULL OR status = '' OR status = 'pending')
@@ -706,10 +708,15 @@ class PatientController extends Controller
                      FROM patient_suggested_treatments st
                      LEFT JOIN doctors d ON d.id = st.doctor_id
                      WHERE st.patient_id = ?
-                       AND LOWER(IFNULL(st.status, '')) = 'completed'
                        AND IFNULL(st.amount, 0) > 0
-                       AND LOWER(IFNULL(st.payment_status, 'pending')) IN ('pending', 'partial')
-                     ORDER BY st.completed_at DESC, st.id DESC",
+                       AND IFNULL(st.paid_amount, 0) < IFNULL(st.amount, 0)
+                       AND (
+                            LOWER(IFNULL(st.status, '')) = 'completed'
+                            OR LOWER(IFNULL(st.status, 'pending')) IN ('', 'pending')
+                       )
+                     ORDER BY
+                       CASE WHEN LOWER(IFNULL(st.status, '')) = 'completed' THEN 0 ELSE 1 END,
+                       st.completed_at DESC, st.id DESC",
                     [(int) $id]
                 );
                 $pendingTotal = 0.0;
@@ -917,12 +924,14 @@ class PatientController extends Controller
         try {
             if ($existing) {
                 Database::update('patient_clinical_charts', $payload, 'id = :_id', ['_id' => (int) $existing['id']]);
-                AuditService::log('patients', 'clinical_chart_update', (int) $id, null, [
-                    'chief_complaint' => $payload['chief_complaint'],
-                    'drug_list' => $payload['drug_list'],
-                    'habit' => $payload['habit'],
-                    'on_examination' => $payload['on_examination'],
-                ]);
+                if ((string) $request->input('autosave', '') !== '1') {
+                    AuditService::log('patients', 'clinical_chart_update', (int) $id, null, [
+                        'chief_complaint' => $payload['chief_complaint'],
+                        'drug_list' => $payload['drug_list'],
+                        'habit' => $payload['habit'],
+                        'on_examination' => $payload['on_examination'],
+                    ]);
+                }
             } else {
                 $payload['patient_id'] = (int) $id;
                 $payload['created_by'] = Auth::id();
@@ -941,9 +950,14 @@ class PatientController extends Controller
         }
 
         $message = 'Clinical chart saved successfully.';
-        $redirect = App::url('patients/' . $id . '?tab=plan');
+        $isAutosave = (string) $request->input('autosave', '') === '1';
         if ($request->isAjax()) {
-            $this->jsonSuccess($message, ['redirect' => $redirect]);
+            if ($isAutosave) {
+                $this->jsonSuccess($message, ['autosaved' => true]);
+            }
+            $this->jsonSuccess($message, [
+                'redirect' => App::url('patients/' . $id . '?tab=plan'),
+            ]);
         }
 
         Session::flash('success', $message);
@@ -991,12 +1005,17 @@ class PatientController extends Controller
         }
 
         $existing = Database::fetchAll(
-            "SELECT id FROM patient_suggested_treatments
+            "SELECT id, description, doctor_id, teeth, amount, paid_amount, payment_status
+             FROM patient_suggested_treatments
              WHERE patient_id = ?
                AND (status IS NULL OR status = '' OR status = 'pending')",
             [(int) $id]
         );
-        $existingIds = array_map(static fn ($r) => (int) $r['id'], $existing);
+        $existingById = [];
+        foreach ($existing as $ex) {
+            $existingById[(int) $ex['id']] = $ex;
+        }
+        $existingIds = array_keys($existingById);
         $keptIds = [];
         $now = date('Y-m-d H:i:s');
         $sort = 1;
@@ -1013,6 +1032,15 @@ class PatientController extends Controller
                 'updated_at' => $now,
             ];
             if ($item['id'] > 0 && in_array($item['id'], $existingIds, true)) {
+                $ex = $existingById[$item['id']] ?? null;
+                $paidExisting = (float) ($ex['paid_amount'] ?? 0);
+                // Payment start / done — name, amount, teeth, doctor lock (server-side)
+                if ($paidExisting > 0 && $ex) {
+                    $payload['description'] = (string) ($ex['description'] ?? $payload['description']);
+                    $payload['amount'] = (float) ($ex['amount'] ?? $payload['amount']);
+                    $payload['teeth'] = $ex['teeth'] ?? null;
+                    $payload['doctor_id'] = !empty($ex['doctor_id']) ? (int) $ex['doctor_id'] : null;
+                }
                 Database::update('patient_suggested_treatments', $payload, 'id = :_id AND patient_id = :_pid', [
                     '_id' => $item['id'],
                     '_pid' => (int) $id,
@@ -1030,10 +1058,15 @@ class PatientController extends Controller
         if ($existingIds) {
             $deleteIds = array_diff($existingIds, $keptIds);
             foreach ($deleteIds as $deleteId) {
+                $paidExisting = (float) (($existingById[$deleteId]['paid_amount'] ?? 0));
+                if ($paidExisting > 0) {
+                    continue; // paid line delete nathi
+                }
                 Database::query(
                     "DELETE FROM patient_suggested_treatments
                      WHERE id = ? AND patient_id = ?
-                       AND (status IS NULL OR status = '' OR status = 'pending')",
+                       AND (status IS NULL OR status = '' OR status = 'pending')
+                       AND IFNULL(paid_amount, 0) <= 0",
                     [$deleteId, (int) $id]
                 );
             }
@@ -1218,15 +1251,29 @@ class PatientController extends Controller
             }
         }
 
-        // Backfill pending collection flag for completed treatments with due amount
+        // Keep payment_status in sync with paid vs due amounts
         try {
             Database::query(
                 "UPDATE patient_suggested_treatments
+                 SET payment_status = 'paid'
+                 WHERE IFNULL(amount, 0) > 0
+                   AND IFNULL(paid_amount, 0) + 0.001 >= IFNULL(amount, 0)
+                   AND LOWER(IFNULL(payment_status, '')) <> 'paid'"
+            );
+            Database::query(
+                "UPDATE patient_suggested_treatments
+                 SET payment_status = 'partial'
+                 WHERE IFNULL(amount, 0) > 0
+                   AND IFNULL(paid_amount, 0) > 0
+                   AND IFNULL(paid_amount, 0) + 0.001 < IFNULL(amount, 0)
+                   AND LOWER(IFNULL(payment_status, '')) <> 'partial'"
+            );
+            Database::query(
+                "UPDATE patient_suggested_treatments
                  SET payment_status = 'pending'
-                 WHERE LOWER(IFNULL(status, '')) = 'completed'
-                   AND IFNULL(amount, 0) > 0
-                   AND IFNULL(paid_amount, 0) < IFNULL(amount, 0)
-                   AND LOWER(IFNULL(payment_status, '')) NOT IN ('pending', 'partial')"
+                 WHERE IFNULL(amount, 0) > 0
+                   AND IFNULL(paid_amount, 0) <= 0
+                   AND LOWER(IFNULL(payment_status, '')) NOT IN ('pending')"
             );
         } catch (\Throwable $e) {
             // ignore
@@ -1267,6 +1314,7 @@ class PatientController extends Controller
                 $doctorId = (int) ($row['doctor_id'] ?? 0);
                 if ($doctorId > 0) {
                     try {
+                        $row['_force_overlap'] = (string) $request->input('force_overlap', '') === '1';
                         $appointmentId = $this->bookFollowUpFromCompletedRow($row, $patientId, $doctorId, $nextDate, $nextTime, $remarks, $instruction);
                         Database::update('patient_suggested_treatments', [
                             'appointment_id' => $appointmentId,
@@ -1285,8 +1333,10 @@ class PatientController extends Controller
                         $this->jsonSuccess('Treatment pehla thi complete che. Next appointment calendar ma add thai gayu.', [
                             'id' => $rowId,
                             'appointment_id' => $appointmentId,
-                            'redirect' => App::url('patients/' . $patientId . '?tab=completed'),
+                            'redirect' => App::url('patients/' . $patientId . '?tab=plan'),
                         ]);
+                    } catch (\App\Services\DoctorSlotOverlapException $e) {
+                        $this->jsonError($e->getMessage(), ['code' => 'doctor_overlap'], 409);
                     } catch (\Throwable $e) {
                         $this->jsonError('Calendar booking fail: ' . $e->getMessage());
                     }
@@ -1297,7 +1347,7 @@ class PatientController extends Controller
                 'id' => $rowId,
                 'appointment_id' => $appointmentId,
                 'already_completed' => true,
-                'redirect' => App::url('patients/' . $patientId . '?tab=completed'),
+                'redirect' => App::url('patients/' . $patientId . '?tab=plan'),
             ]);
         }
 
@@ -1327,14 +1377,33 @@ class PatientController extends Controller
         }
 
         $appointmentId = !empty($row['appointment_id']) ? (int) $row['appointment_id'] : null;
+        $nextTreatmentId = (int) $request->input('next_treatment_id', 0);
+        $nextTreatment = null;
+        if ($nextTreatmentId > 0) {
+            $nextTreatment = Database::fetch(
+                "SELECT * FROM patient_suggested_treatments
+                 WHERE id = ? AND patient_id = ?
+                   AND (status IS NULL OR status = '' OR LOWER(status) = 'pending')",
+                [$nextTreatmentId, $patientId]
+            );
+            if (!$nextTreatment) {
+                $this->jsonError('Selected next treatment plan ma nathi / pehla complete thai gayu.');
+            }
+        }
+
         if ($nextDate !== '' && $nextTime !== '') {
+            if ($nextTreatmentId <= 0) {
+                $this->jsonError('Next appointment mate niche thi next treatment select karo.');
+            }
             $doctorId = (int) ($row['doctor_id'] ?? 0);
             if ($doctorId <= 0) {
                 $this->jsonError('Calendar ma add karva treating doctor select/save karo pehla.');
             }
             try {
+                $bookRow = $nextTreatment ?: $row;
+                $bookRow['_force_overlap'] = (string) $request->input('force_overlap', '') === '1';
                 $appointmentId = $this->bookFollowUpFromCompletedRow(
-                    $row,
+                    $bookRow,
                     $patientId,
                     $doctorId,
                     $nextDate,
@@ -1342,6 +1411,17 @@ class PatientController extends Controller
                     $remarks,
                     $instruction
                 );
+                // Link calendar slot to the upcoming treatment line
+                Database::update('patient_suggested_treatments', [
+                    'appointment_id' => $appointmentId,
+                    'updated_at' => date('Y-m-d H:i:s'),
+                    'updated_by' => Auth::id(),
+                ], 'id = :_id AND patient_id = :_pid', [
+                    '_id' => $nextTreatmentId,
+                    '_pid' => $patientId,
+                ]);
+            } catch (\App\Services\DoctorSlotOverlapException $e) {
+                $this->jsonError($e->getMessage(), ['code' => 'doctor_overlap'], 409);
             } catch (\Throwable $e) {
                 $this->jsonError('Calendar booking fail: ' . $e->getMessage());
             }
@@ -1349,6 +1429,22 @@ class PatientController extends Controller
 
         $now = date('Y-m-d H:i:s');
         $payAmount = $amount > 0 ? $amount : max(0, (float) ($row['amount'] ?? 0));
+        $existingPaid = max(0, (float) ($row['paid_amount'] ?? 0));
+        if ($existingPaid > $payAmount) {
+            $existingPaid = $payAmount;
+        }
+        $paymentStatus = 'paid';
+        if ($payAmount > 0) {
+            if ($existingPaid + 0.001 >= $payAmount) {
+                $paymentStatus = 'paid';
+            } elseif ($existingPaid > 0) {
+                $paymentStatus = 'partial';
+            } else {
+                $paymentStatus = 'pending';
+            }
+        }
+
+        // Completed row keeps next appt info for history; appointment_id stays on next treatment
         Database::update('patient_suggested_treatments', [
             'status' => 'completed',
             'remarks' => $remarks !== '' ? $remarks : null,
@@ -1357,9 +1453,8 @@ class PatientController extends Controller
             'patient_instruction' => $instruction !== '' ? $instruction : null,
             'amount' => $payAmount,
             'consent_book_number' => $consent !== '' ? $consent : null,
-            'appointment_id' => $appointmentId,
-            'payment_status' => $payAmount > 0 ? 'pending' : 'paid',
-            'paid_amount' => 0,
+            'payment_status' => $paymentStatus,
+            'paid_amount' => $existingPaid,
             'completed_at' => $now,
             'completed_by' => Auth::id(),
             'updated_by' => Auth::id(),
@@ -1372,8 +1467,10 @@ class PatientController extends Controller
         AuditService::log('patients', 'treatment_complete', $patientId, $row, [
             'item_id' => $rowId,
             'amount' => $payAmount,
+            'paid_amount' => $existingPaid,
             'consent_book_number' => $consent,
             'appointment_id' => $appointmentId,
+            'next_treatment_id' => $nextTreatmentId ?: null,
             'next_appointment_date' => $nextDate,
             'next_appointment_time' => $nextTime,
         ]);
@@ -1388,18 +1485,52 @@ class PatientController extends Controller
 
         $msg = 'Treatment marked as completed.';
         if ($appointmentId) {
-            $msg .= ' Next appointment calendar ma add thai gayu.';
+            $nextLabel = trim((string) ($nextTreatment['description'] ?? ''));
+            $msg .= ' Next appointment calendar ma add thai gayu'
+                . ($nextLabel !== '' ? ' (' . $nextLabel . ').' : '.');
         }
+        $dueLeft = max(0, $payAmount - $existingPaid);
+        $collectNow = (string) $request->input('collect_now', '1') === '1';
+        $collectAmount = (float) $request->input('collect_amount', $dueLeft);
+        if ($collectAmount <= 0) {
+            $collectAmount = $dueLeft;
+        }
+        if ($collectAmount > $dueLeft) {
+            $collectAmount = $dueLeft;
+        }
+        if ($collectNow && $collectAmount > 0.001) {
+            try {
+                $collected = $this->recordSuggestedTreatmentCollection(
+                    $patientId,
+                    $rowId,
+                    $collectAmount,
+                    trim((string) $request->input('payment_mode', 'Cash')) ?: 'Cash',
+                    date('Y-m-d'),
+                    $collectAmount + 0.001 < $dueLeft
+                        ? 'Advance collected on Treatment Complete'
+                        : 'Collected on Treatment Complete'
+                );
+                $msg .= ' ₹' . number_format($collectAmount, 2) . ' payment Payments ma jama thai gayu'
+                    . (!empty($collected['receipt_number']) ? ' (Receipt ' . $collected['receipt_number'] . ').' : '.');
+                $dueLeft = max(0, $dueLeft - $collectAmount);
+            } catch (\Throwable $e) {
+                $msg .= ' Payment auto-collect fail: ' . $e->getMessage() . ' — Payments tab thi Collection karo.';
+            }
+        } elseif ($dueLeft > 0) {
+            $msg .= ' Pending ₹' . number_format($dueLeft, 2) . ' Payments tab ma collect karo.';
+        }
+
 
         $this->jsonSuccess($msg, [
             'id' => $rowId,
             'appointment_id' => $appointmentId,
-            'redirect' => App::url('patients/' . $patientId . '?tab=completed'),
+            'next_treatment_id' => $nextTreatmentId ?: null,
+            'redirect' => App::url('patients/' . $patientId . '?tab=plan'),
         ]);
     }
 
     /**
-     * Collect payment for a completed suggested treatment (Reception Payments tab).
+     * Collect payment for a completed / pending suggested treatment (Reception Payments tab).
      */
     public function collectSuggestedTreatmentPayment(Request $request, string $id, string $itemId): void
     {
@@ -1414,8 +1545,8 @@ class PatientController extends Controller
         if (!$row) {
             $this->jsonError('Treatment not found.', null, 404);
         }
-        if (strtolower((string) ($row['status'] ?? '')) !== 'completed') {
-            $this->jsonError('Only completed treatments can be collected.');
+        if (strtolower((string) ($row['status'] ?? '')) === 'cancelled') {
+            $this->jsonError('Cancelled treatment collect nathi thai shakay.');
         }
 
         $due = max(0, (float) ($row['amount'] ?? 0) - (float) ($row['paid_amount'] ?? 0));
@@ -1438,13 +1569,55 @@ class PatientController extends Controller
             $paymentDate = date('Y-m-d');
         }
 
+        try {
+            $result = $this->recordSuggestedTreatmentCollection(
+                $patientId,
+                $rowId,
+                $collectAmount,
+                $mode,
+                $paymentDate,
+                $remarks
+            );
+        } catch (\Throwable $e) {
+            $this->jsonError('Collection fail: ' . $e->getMessage());
+        }
+
+        $this->jsonSuccess('Payment collected successfully.', [
+            'payment_id' => $result['payment_id'] ?? null,
+            'redirect' => App::url('patients/' . $patientId . '?tab=payments'),
+        ]);
+    }
+
+    /**
+     * @return array{payment_id:int,bill_id:int,receipt_number:string}
+     */
+    private function recordSuggestedTreatmentCollection(
+        int $patientId,
+        int $rowId,
+        float $collectAmount,
+        string $mode,
+        string $paymentDate,
+        string $remarks
+    ): array {
+        $row = Database::fetch(
+            'SELECT * FROM patient_suggested_treatments WHERE id = ? AND patient_id = ?',
+            [$rowId, $patientId]
+        );
+        if (!$row) {
+            throw new \RuntimeException('Treatment not found.');
+        }
+        $due = max(0, (float) ($row['amount'] ?? 0) - (float) ($row['paid_amount'] ?? 0));
+        if ($collectAmount <= 0 || $collectAmount > $due + 0.001) {
+            throw new \RuntimeException('Invalid collection amount.');
+        }
+
         $now = date('Y-m-d H:i:s');
         $paymentId = null;
         $billId = !empty($row['payment_bill_id']) ? (int) $row['payment_bill_id'] : null;
+        $receipt = '';
 
+        Database::beginTransaction();
         try {
-            Database::beginTransaction();
-
             if ($billId) {
                 $bill = Database::fetch('SELECT * FROM bills WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [$billId]);
             } else {
@@ -1452,7 +1625,6 @@ class PatientController extends Controller
             }
 
             if (!$bill) {
-                // Ensure booking_amount column exists on older DBs
                 try {
                     \App\Services\BookingService::ensureSchema();
                 } catch (\Throwable $e) {
@@ -1485,8 +1657,9 @@ class PatientController extends Controller
                 $bill = Database::fetch('SELECT * FROM bills WHERE id = ? FOR UPDATE', [$billId]);
             }
 
+            $receipt = $this->nextGenericCode('payments', 'receipt_number', 'RCP');
             $paymentId = Database::insert('payments', [
-                'receipt_number' => $this->nextGenericCode('payments', 'receipt_number', 'RCP'),
+                'receipt_number' => $receipt,
                 'bill_id' => (int) $bill['id'],
                 'patient_id' => $patientId,
                 'payment_date' => $paymentDate,
@@ -1527,7 +1700,7 @@ class PatientController extends Controller
             Database::commit();
         } catch (\Throwable $e) {
             Database::rollBack();
-            $this->jsonError('Collection fail: ' . $e->getMessage());
+            throw $e;
         }
 
         AuditService::log('payments', 'collect_treatment', $paymentId, null, [
@@ -1537,10 +1710,11 @@ class PatientController extends Controller
             'bill_id' => $billId,
         ]);
 
-        $this->jsonSuccess('Payment collected successfully.', [
-            'payment_id' => $paymentId,
-            'redirect' => App::url('patients/' . $patientId . '?tab=payments'),
-        ]);
+        return [
+            'payment_id' => (int) $paymentId,
+            'bill_id' => (int) $billId,
+            'receipt_number' => $receipt,
+        ];
     }
 
     private function nextGenericCode(string $table, string $column, string $prefix, int $pad = 5): string
@@ -1602,6 +1776,7 @@ class PatientController extends Controller
             'entry_type' => 'appointment',
             'status' => 'scheduled',
             'skip_slot_check' => false,
+            'force_overlap' => !empty($row['_force_overlap']),
             'remarks' => 'Booked from Treatment Complete',
         ]);
     }

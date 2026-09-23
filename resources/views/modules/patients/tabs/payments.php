@@ -9,22 +9,23 @@ $canCollect = !empty($canCollect);
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
         <h3 class="h5 mb-1">Payments</h3>
-        <p class="text-muted small mb-0">Treatment Complete thi avela pending amounts + collected receipts.</p>
+        <p class="text-muted small mb-0">Plan advance + Treatment Complete pending amounts + collected receipts.</p>
     </div>
     <?php if ($pendingTotal > 0): ?>
         <div class="alert alert-warning py-2 px-3 mb-0">
             <strong>Pending collection:</strong> ₹<?= e(number_format($pendingTotal, 2)) ?>
         </div>
     <?php else: ?>
-        <div class="alert alert-success py-2 px-3 mb-0 mb-0">
-            <strong>Pending:</strong> ₹0.00
+        <div class="alert alert-success py-2 px-3 mb-0">
+            <strong><i class="bi bi-check2-circle me-1"></i>All collected</strong> — no pending amount
         </div>
     <?php endif; ?>
 </div>
 
+<?php if ($pendingCollections !== []): ?>
 <div class="card border mb-4">
     <div class="card-header bg-light d-flex justify-content-between align-items-center">
-        <strong><i class="bi bi-hourglass-split me-1 text-warning"></i>Pending from Treatment Completed</strong>
+        <strong><i class="bi bi-hourglass-split me-1 text-warning"></i>Pending / Advance collection</strong>
         <span class="badge text-bg-warning"><?= count($pendingCollections) ?> item(s)</span>
     </div>
     <div class="card-body p-0">
@@ -46,7 +47,7 @@ $canCollect = !empty($canCollect);
                 <tbody>
                     <?php if ($pendingCollections === []): ?>
                         <tr>
-                            <td colspan="9" class="text-muted py-4">No pending collection. Treatment Complete ma amount lakho to ahiya aavse.</td>
+                            <td colspan="9" class="text-muted py-4">No pending collection. Plan ma amount + Collect Advance, athva Treatment Complete pachhi ahiya aavse.</td>
                         </tr>
                     <?php endif; ?>
                     <?php foreach ($pendingCollections as $i => $row):
@@ -54,7 +55,12 @@ $canCollect = !empty($canCollect);
                     ?>
                         <tr>
                             <td><?= (int) ($i + 1) ?></td>
-                            <td><?= e($row['description'] ?? '') ?></td>
+                            <td class="text-start">
+                                <?= e($row['description'] ?? '') ?>
+                                <?php if (strtolower((string) ($row['status'] ?? '')) !== 'completed'): ?>
+                                    <span class="badge text-bg-info ms-1">Plan / Advance</span>
+                                <?php endif; ?>
+                            </td>
                             <td><?= e($row['teeth'] ?? '—') ?></td>
                             <td><?= e(doctor_label($row['doctor_name'] ?? null)) ?></td>
                             <td><?= e(number_format((float) ($row['amount'] ?? 0), 2)) ?></td>
@@ -83,6 +89,7 @@ $canCollect = !empty($canCollect);
         </div>
     </div>
 </div>
+<?php endif; ?>
 
 <div class="card border">
     <div class="card-header bg-light">

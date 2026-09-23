@@ -439,6 +439,8 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   if (window.FullCalendar) {
+    const isMobile = window.matchMedia('(max-width: 767.98px)').matches;
+    const isTablet = window.matchMedia('(max-width: 991.98px)').matches;
     const cal = new FullCalendar.Calendar(document.getElementById('calendar'), {
       views: {
         timeGridFourDay: {
@@ -447,13 +449,13 @@ document.addEventListener('DOMContentLoaded', function () {
           buttonText: '4 Days'
         }
       },
-      initialView: 'timeGridFourDay',
+      initialView: isMobile ? 'timeGridDay' : 'timeGridFourDay',
       firstDay: 1,
-      headerToolbar: {
-        left: 'prev,next today',
-        center: 'title',
-        right: 'timeGridFourDay,timeGridDay,timeGridWeek,dayGridMonth'
-      },
+      headerToolbar: isMobile
+        ? { left: 'prev,next', center: 'title', right: 'timeGridDay,dayGridMonth' }
+        : (isTablet
+          ? { left: 'prev,next today', center: 'title', right: 'timeGridDay,timeGridFourDay,dayGridMonth' }
+          : { left: 'prev,next today', center: 'title', right: 'timeGridFourDay,timeGridDay,timeGridWeek,dayGridMonth' }),
       buttonText: {
         today: 'Today',
         month: 'Month',
@@ -462,6 +464,18 @@ document.addEventListener('DOMContentLoaded', function () {
       },
       height: 'auto',
       expandRows: true,
+      windowResize: function () {
+        const mobileNow = window.matchMedia('(max-width: 767.98px)').matches;
+        const tabletNow = window.matchMedia('(max-width: 991.98px)').matches;
+        cal.setOption('headerToolbar', mobileNow
+          ? { left: 'prev,next', center: 'title', right: 'timeGridDay,dayGridMonth' }
+          : (tabletNow
+            ? { left: 'prev,next today', center: 'title', right: 'timeGridDay,timeGridFourDay,dayGridMonth' }
+            : { left: 'prev,next today', center: 'title', right: 'timeGridFourDay,timeGridDay,timeGridWeek,dayGridMonth' }));
+        if (mobileNow && cal.view.type !== 'timeGridDay' && cal.view.type !== 'dayGridMonth') {
+          cal.changeView('timeGridDay');
+        }
+      },
       slotMinTime: '07:00:00',
       slotMaxTime: '22:00:00',
       slotDuration: '00:30:00',
@@ -506,6 +520,21 @@ document.addEventListener('DOMContentLoaded', function () {
       eventDisplay: 'block',
       dayMaxEvents: true,
       stickyHeaderDates: true,
+      slotEventOverlap: false,
+      eventOverlap: true,
+      eventDidMount: function (info) {
+        const p = info.event.extendedProps || {};
+        if ((p.entry_type || '') === 'doctor_remark') return;
+        const tip = [
+          'Patient: ' + (p.patient_name || info.event.title || '—'),
+          'Doctor: ' + (p.doctor_name || '—'),
+          'Treatment: ' + (p.treatment_name || p.subtitle || p.visit_reason || '—'),
+          'Number: ' + (p.mobile || '—'),
+          'Time: ' + (info.timeText || '')
+        ].join('\n');
+        info.el.setAttribute('title', tip);
+        info.el.classList.add('fc-appt-card');
+      },
       eventContent: function (arg) {
         const p = arg.event.extendedProps || {};
         const esc = function (s) {
@@ -521,18 +550,21 @@ document.addEventListener('DOMContentLoaded', function () {
               + '<div class="fc-ev-name">' + esc(arg.event.title) + '</div></div>'
           };
         }
-        const name = p.patient_name || arg.event.title || '';
-        let sub = p.subtitle || p.treatment_name || '';
-        if (!sub && p.visit_reason) {
-          sub = String(p.visit_reason).split('|')[0].trim();
-          if (sub.length > 60) sub = sub.slice(0, 57) + '…';
+        const patient = (p.patient_name || '').trim() || '—';
+        const doctor = (p.doctor_name || '').trim() || '—';
+        let treatment = (p.treatment_name || p.subtitle || '').trim();
+        if (!treatment && p.visit_reason) {
+          treatment = String(p.visit_reason).split('|')[0].trim();
         }
-        const mobile = p.mobile || '';
+        if (treatment.length > 48) treatment = treatment.slice(0, 45) + '…';
+        if (!treatment) treatment = '—';
+        const mobile = (p.mobile || '').trim() || '—';
         let html = '<div class="fc-ev">';
         html += '<div class="fc-ev-time">' + esc(arg.timeText) + '</div>';
-        html += '<div class="fc-ev-name">' + esc(name) + '</div>';
-        if (sub) html += '<div class="fc-ev-sub">' + esc(sub) + '</div>';
-        if (mobile) html += '<div class="fc-ev-phone">' + esc(mobile) + '</div>';
+        html += '<div class="fc-ev-name" title="' + esc(patient) + '">' + esc(patient) + '</div>';
+        html += '<div class="fc-ev-doc" title="' + esc(doctor) + '">' + esc(doctor) + '</div>';
+        html += '<div class="fc-ev-sub" title="' + esc(treatment) + '">' + esc(treatment) + '</div>';
+        html += '<div class="fc-ev-phone" title="' + esc(mobile) + '">' + esc(mobile) + '</div>';
         html += '</div>';
         return { html: html };
       },
@@ -547,7 +579,9 @@ document.addEventListener('DOMContentLoaded', function () {
           credentials: 'same-origin'
         })
           .then(r => r.json())
-          .then(success)
+          .then(function (data) {
+            success(data);
+          })
           .catch(failure);
       },
       dateClick: function (info) {
@@ -561,34 +595,16 @@ document.addEventListener('DOMContentLoaded', function () {
         const props = info.event.extendedProps || {};
         const entryType = props.entry_type || 'appointment';
         const patientId = props.patient_id || '';
-        const doctorId = props.doctor_id || '';
         const id = info.event.id || '';
 
         if (entryType === 'doctor_remark') {
           return;
         }
 
-        // Walk-in / waiting patients → open doctor visit/clinical
-        if (entryType === 'walk_in' || ['waiting', 'checked_in', 'with_doctor'].includes(props.status || '')) {
-          if (id) {
-            window.location.href = '<?= app_url('visits/open') ?>/' + encodeURIComponent(id);
-            return;
-          }
-        }
-
-        // Treatment appointment → go to treatment plan (then history/billing from patient)
+        // Always open patient Treatment Plan — Treatment Complete / payment tya j che.
+        // (Previously waiting/checked_in/walk_in → visits/edit — wrong screen.)
         if (patientId) {
-          const qs = new URLSearchParams({
-            patient_id: String(patientId),
-            doctor_id: String(doctorId || ''),
-            appointment_id: String(id || ''),
-            from_calendar: '1'
-          });
-          <?php if (can('treatments.add')): ?>
-          window.location.href = '<?= app_url('treatment-plans/create') ?>?' + qs.toString();
-          <?php else: ?>
           window.location.href = '<?= app_url('patients') ?>/' + encodeURIComponent(patientId) + '?tab=plan';
-          <?php endif; ?>
           return;
         }
 

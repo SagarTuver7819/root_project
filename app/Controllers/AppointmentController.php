@@ -165,7 +165,10 @@ class AppointmentController extends \App\Core\Controller
                 'treatment_master_id' => $request->input('treatment_master_id') ?: null,
                 'notes' => $request->input('notes') ?: $request->input('visit_reason'),
                 'status' => $request->input('status') ?: 'scheduled',
+                'force_overlap' => (string) $request->input('force_overlap', '') === '1',
             ]));
+        } catch (\App\Services\DoctorSlotOverlapException $e) {
+            $this->jsonError($e->getMessage(), ['code' => 'doctor_overlap'], 409);
         } catch (\Throwable $e) {
             $this->jsonError($e->getMessage());
         }
@@ -219,7 +222,8 @@ class AppointmentController extends \App\Core\Controller
                 (string) $data['start_time'],
                 (string) $data['end_time'],
                 (int) $id,
-                true
+                true,
+                (string) $request->input('force_overlap', '') === '1'
             );
             $payload = [
                 'patient_id' => !empty($data['patient_id']) ? (int) $data['patient_id'] : null,
@@ -249,6 +253,9 @@ class AppointmentController extends \App\Core\Controller
                 ]);
             }
             Database::commit();
+        } catch (\App\Services\DoctorSlotOverlapException $e) {
+            Database::rollBack();
+            $this->jsonError($e->getMessage(), ['code' => 'doctor_overlap'], 409);
         } catch (\Throwable $e) {
             Database::rollBack();
             $this->jsonError($e->getMessage());
