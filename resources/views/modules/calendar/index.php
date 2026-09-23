@@ -46,19 +46,21 @@ require __DIR__ . '/../../components/page-header.php';
 </div>
 
 <div class="modal fade" id="appointmentModal" tabindex="-1" aria-labelledby="appointmentModalTitle" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-dialog book-slot-dialog modal-dialog-scrollable">
         <form class="modal-content book-slot-modal ajax-form" method="post" action="<?= app_url('appointments') ?>" data-reload="1">
             <div class="modal-header book-slot-header">
                 <div class="book-slot-header-text">
                     <span class="book-slot-eyebrow"><i class="bi bi-calendar2-check me-1"></i>Front Desk</span>
                     <h5 class="modal-title" id="appointmentModalTitle">Book Appointment</h5>
-                    <p class="book-slot-sub mb-0">Select patient, doctor and time slot</p>
+                    <p class="book-slot-sub mb-0">Right side calendar ma doctor ni bookings jovo — free slot click = date/time fill</p>
                 </div>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body book-slot-body">
                 <?= csrf_field() ?>
-                <div class="row g-3">
+                <div class="book-slot-layout">
+                <div class="book-slot-form-col">
+                <div class="row g-2">
                     <div class="col-12">
                         <div class="book-slot-section-label">Booking type</div>
                     </div>
@@ -198,6 +200,21 @@ require __DIR__ . '/../../components/page-header.php';
                         <input type="hidden" name="visit_reason" id="visitReasonField" value="">
                     </div>
                 </div>
+                </div>
+                <aside class="book-slot-day-col" aria-label="Doctor calendar">
+                    <div class="book-cal-panel">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                            <div>
+                                <div class="fw-semibold small text-uppercase text-muted mb-0">Doctor Calendar</div>
+                                <div class="fw-bold fs-5" id="bookCalDoctorLabel">—</div>
+                            </div>
+                            <span class="badge text-bg-secondary" id="bookCalDayLabel">Select doctor</span>
+                        </div>
+                        <div id="bookDoctorCalendar" class="book-doctor-calendar"></div>
+                        <p class="small text-muted mb-0 mt-2">Booked slots colored cards ma dekhase. Free area click = Start / End time fill thase.</p>
+                    </div>
+                </aside>
+                </div>
             </div>
             <div class="modal-footer book-slot-footer">
                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
@@ -320,6 +337,7 @@ document.addEventListener('DOMContentLoaded', function () {
       document.getElementById('entryType').value = 'appointment';
       document.getElementById('notesField').value = '';
       syncEntryType();
+      destroyBookCalendar();
     });
   }
 
@@ -432,6 +450,258 @@ document.addEventListener('DOMContentLoaded', function () {
       initPatientSelect(prefill.patientId);
     }
     modal && modal.show();
+  }
+
+  let bookCalendar = null;
+  let bookPickEvent = null;
+
+  function getBookModalDoctorId() {
+    const locked = document.getElementById('lockedDoctorId')?.value;
+    if (locked) return String(locked);
+    return String(document.getElementById('modalDoctor')?.value || '').trim();
+  }
+
+  function getBookModalDoctorName() {
+    const el = document.getElementById('modalDoctor');
+    if (!el) return 'Doctor';
+    const opt = el.options[el.selectedIndex];
+    return (opt && opt.text) ? opt.text.trim() : 'Doctor';
+  }
+
+  function destroyBookCalendar() {
+    bookPickEvent = null;
+    if (bookCalendar) {
+      bookCalendar.destroy();
+      bookCalendar = null;
+    }
+    const el = document.getElementById('bookDoctorCalendar');
+    if (el) el.innerHTML = '';
+  }
+
+  function parseBookLocalDateTime(dateStr, timeStr) {
+    if (!dateStr || !timeStr) return null;
+    const t = String(timeStr).length === 5 ? timeStr + ':00' : timeStr;
+    const d = new Date(dateStr + 'T' + t);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  function setBookPickSlot(startDate, endDate) {
+    if (!bookCalendar || !startDate) return;
+    const start = startDate instanceof Date ? startDate : new Date(startDate);
+    if (Number.isNaN(start.getTime())) return;
+    let end = endDate instanceof Date ? endDate : (endDate ? new Date(endDate) : null);
+    if (!end || Number.isNaN(end.getTime())) {
+      end = new Date(start.getTime() + 60 * 60 * 1000);
+    }
+    if (bookPickEvent) {
+      bookPickEvent.remove();
+      bookPickEvent = null;
+    }
+    bookPickEvent = bookCalendar.addEvent({
+      id: 'book-selected-slot',
+      title: 'Selected slot',
+      start: start,
+      end: end,
+      backgroundColor: '#0EA5E9',
+      borderColor: '#0284C7',
+      textColor: '#ffffff',
+      editable: false,
+      overlap: true,
+      classNames: ['book-pick-slot'],
+      extendedProps: { entry_type: 'book_pick' }
+    });
+    document.getElementById('appointmentDate').value = start.getFullYear() + '-' + pad2(start.getMonth() + 1) + '-' + pad2(start.getDate());
+    document.getElementById('startTime').value = pad2(start.getHours()) + ':' + pad2(start.getMinutes());
+    document.getElementById('endTime').value = pad2(end.getHours()) + ':' + pad2(end.getMinutes());
+    const dayLabel = document.getElementById('bookCalDayLabel');
+    if (dayLabel) {
+      dayLabel.textContent = pad2(start.getDate()) + '-' + pad2(start.getMonth() + 1) + '-' + start.getFullYear();
+    }
+  }
+
+  function syncBookPickFromInputs() {
+    const dateStr = document.getElementById('appointmentDate')?.value || '';
+    const timeStr = document.getElementById('startTime')?.value || '';
+    const endStr = document.getElementById('endTime')?.value || '';
+    if (!dateStr || !timeStr || !bookCalendar) return;
+    const start = parseBookLocalDateTime(dateStr, timeStr);
+    if (!start) return;
+    let end = endStr ? parseBookLocalDateTime(dateStr, endStr) : null;
+    if (!end || end <= start) {
+      end = new Date(start.getTime() + 60 * 60 * 1000);
+    }
+    setBookPickSlot(start, end);
+  }
+
+  function initBookCalendar() {
+    const el = document.getElementById('bookDoctorCalendar');
+    const doctorId = getBookModalDoctorId();
+    const doctorLabel = document.getElementById('bookCalDoctorLabel');
+    if (doctorLabel) doctorLabel.textContent = getBookModalDoctorName() || '—';
+    if (!el || !window.FullCalendar) return;
+    if (!doctorId) {
+      destroyBookCalendar();
+      el.innerHTML = '<div class="text-muted p-4 text-center">Doctor select karo — calendar ahiya open thase.</div>';
+      return;
+    }
+
+    const jumpDate = (document.getElementById('appointmentDate')?.value || '').substring(0, 10) || '<?= date('Y-m-d') ?>';
+    destroyBookCalendar();
+
+    const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const calH = Math.max(420, Math.floor(window.innerHeight * 0.97 - 220));
+    const isMobile = window.matchMedia('(max-width: 767.98px)').matches;
+
+    bookCalendar = new FullCalendar.Calendar(el, {
+      views: {
+        timeGridFourDay: {
+          type: 'timeGrid',
+          duration: { days: 4 },
+          buttonText: '4 Days'
+        }
+      },
+      initialView: isMobile ? 'timeGridDay' : 'timeGridFourDay',
+      firstDay: 1,
+      initialDate: jumpDate,
+      headerToolbar: {
+        left: 'prev,next today',
+        center: 'title',
+        right: isMobile ? 'timeGridDay,dayGridMonth' : 'timeGridFourDay,timeGridDay,timeGridWeek,dayGridMonth'
+      },
+      buttonText: { today: 'Today', month: 'Month', week: 'Week', day: 'Day' },
+      height: calH,
+      expandRows: true,
+      allDaySlot: false,
+      nowIndicator: true,
+      selectable: true,
+      selectMirror: true,
+      slotMinTime: '07:00:00',
+      slotMaxTime: '22:00:00',
+      slotDuration: '00:30:00',
+      slotLabelInterval: '01:00:00',
+      eventDisplay: 'block',
+      stickyHeaderDates: true,
+      slotEventOverlap: false,
+      eventOverlap: true,
+      slotLabelFormat: {
+        hour: 'numeric',
+        minute: '2-digit',
+        omitZeroMinute: false,
+        meridiem: 'short',
+        hour12: true
+      },
+      eventTimeFormat: {
+        hour: 'numeric',
+        minute: '2-digit',
+        meridiem: 'short',
+        hour12: true
+      },
+      dayHeaderContent: function (arg) {
+        return {
+          html: '<div class="fc-day-head"><span class="fc-day-name">' + weekdays[arg.date.getDay()] + '</span><span class="fc-day-date">' + fmtDMY(arg.date) + '</span></div>'
+        };
+      },
+      eventContent: function (arg) {
+        const p = arg.event.extendedProps || {};
+        const esc = function (s) {
+          return String(s || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        };
+        if ((p.entry_type || '') === 'book_pick') {
+          return {
+            html: '<div class="fc-ev"><div class="fc-ev-time">' + esc(arg.timeText) + '</div>'
+              + '<div class="fc-ev-name">Selected slot</div></div>'
+          };
+        }
+        if ((p.entry_type || '') === 'doctor_remark') {
+          return {
+            html: '<div class="fc-ev"><div class="fc-ev-time">' + esc(arg.timeText) + '</div>'
+              + '<div class="fc-ev-name">' + esc(arg.event.title) + '</div></div>'
+          };
+        }
+        const name = p.patient_name || arg.event.title || '';
+        let sub = p.subtitle || p.treatment_name || '';
+        if (!sub && p.visit_reason) {
+          sub = String(p.visit_reason).split('|')[0].trim();
+          if (sub.length > 48) sub = sub.slice(0, 45) + '…';
+        }
+        const mobile = p.mobile || '';
+        let html = '<div class="fc-ev">';
+        html += '<div class="fc-ev-time">' + esc(arg.timeText) + '</div>';
+        html += '<div class="fc-ev-name">' + esc(name) + '</div>';
+        if (sub) html += '<div class="fc-ev-sub">' + esc(sub) + '</div>';
+        if (mobile) html += '<div class="fc-ev-phone">' + esc(mobile) + '</div>';
+        html += '</div>';
+        return { html: html };
+      },
+      events: function (info, success, failure) {
+        const params = new URLSearchParams({
+          start: info.startStr,
+          end: info.endStr,
+          doctor_id: String(doctorId)
+        });
+        fetch('<?= app_url('calendar/events') ?>?' + params.toString(), {
+          headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+          credentials: 'same-origin'
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (rows) { success(rows || []); })
+          .catch(failure);
+      },
+      dateClick: function (info) {
+        if (!info.dateStr.includes('T')) return;
+        const end = new Date(info.date.getTime() + 60 * 60 * 1000);
+        setBookPickSlot(info.date, end);
+      },
+      select: function (info) {
+        setBookPickSlot(info.start, info.end);
+        bookCalendar.unselect();
+      },
+      datesSet: function (info) {
+        const titleEl = el.querySelector('.fc-toolbar-title');
+        const start = info.start;
+        const end = new Date(info.end.getTime() - 1);
+        if (titleEl) {
+          if (info.view.type === 'timeGridDay') {
+            titleEl.textContent = fmtDMY(start);
+          } else if (info.view.type === 'dayGridMonth') {
+            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            titleEl.textContent = months[info.view.currentStart.getMonth()] + ' ' + info.view.currentStart.getFullYear();
+          } else {
+            titleEl.textContent = fmtDMY(start) + ' – ' + fmtDMY(end);
+          }
+        }
+        const label = document.getElementById('bookCalDayLabel');
+        if (label) label.textContent = fmtDMY(info.view.currentStart || start);
+      }
+    });
+    bookCalendar.render();
+    setTimeout(function () {
+      if (!bookCalendar) return;
+      bookCalendar.updateSize();
+      syncBookPickFromInputs();
+    }, 80);
+  }
+
+  document.getElementById('modalDoctor')?.addEventListener('change', function () {
+    if (modalEl && modalEl.classList.contains('show')) initBookCalendar();
+  });
+  document.getElementById('appointmentDate')?.addEventListener('change', function () {
+    if (!bookCalendar) return;
+    const d = this.value;
+    if (d) bookCalendar.gotoDate(d);
+    syncBookPickFromInputs();
+  });
+  document.getElementById('startTime')?.addEventListener('change', syncBookPickFromInputs);
+  document.getElementById('endTime')?.addEventListener('change', syncBookPickFromInputs);
+
+  if (modalEl) {
+    modalEl.addEventListener('shown.bs.modal', function () {
+      initBookCalendar();
+    });
   }
 
   document.getElementById('btnOpenBook')?.addEventListener('click', function () {

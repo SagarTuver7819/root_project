@@ -1,7 +1,7 @@
 <aside class="app-sidebar" id="appSidebar">
     <div class="sidebar-brand">
         <?php
-        // Admin + Reception: simplified 3-menu view (full menus hidden below, not deleted).
+        // Admin + Reception + Super Admin: full sidebar menus
         $frontDeskSimple = \App\Core\Auth::hasRole('receptionist')
             || \App\Core\Auth::hasRole('admin')
             || \App\Core\Auth::hasRole('super_admin');
@@ -15,49 +15,8 @@
 
     <nav class="sidebar-nav">
         <?php if ($frontDeskSimple): ?>
-            <?php /* ===== ACTIVE: Admin / Reception — only 3 menus ===== */ ?>
-            <div class="nav-section">
-                <?php if (can('appointments.view') || can('calendar.view')): ?>
-                <a class="nav-link <?= active_menu('calendar') ?>" href="<?= app_url('calendar') ?>" title="Calendar View">
-                    <i class="bi bi-calendar3"></i><span>Calendar View</span>
-                </a>
-                <?php endif; ?>
-
-                <?php if (can('appointments.view') || can('patients.view')): ?>
-                <button class="nav-toggle <?= menu_open(['queue','patients']) ?>" type="button" data-target="menuWalkin">
-                    <span><i class="bi bi-person-walking"></i><span class="label">Walkin Customer</span></span>
-                    <i class="bi bi-chevron-down chevron"></i>
-                </button>
-                <div class="nav-submenu <?= menu_open(['queue','patients']) ?>" id="menuWalkin">
-                    <a class="nav-link <?= active_menu('queue') ?>" href="<?= app_url('queue') ?>">
-                        <i class="bi bi-table"></i><span>Today's Walk-in</span>
-                    </a>
-                    <?php if (can('patients.add') || can('appointments.add')): ?>
-                    <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#walkinAddPatientModal">
-                        <i class="bi bi-person-plus"></i><span>Add Patient</span>
-                    </a>
-                    <?php endif; ?>
-                </div>
-                <?php endif; ?>
-
-                <?php if (can('payments.view')): ?>
-                <a class="nav-link <?= active_menu('payments') ?>" href="<?= app_url('payments') ?>" title="Payments">
-                    <i class="bi bi-wallet2"></i><span>Payments</span>
-                </a>
-                <?php endif; ?>
-            </div>
-
-            <?php
-            /*
-             * =====================================================================
-             * HIDDEN for Admin / Reception (coding ma rakhyu — view nathi)
-             * Full original sidebar menus. Restore: change `if (false)` → `if (true)`
-             * or remove this wrapper after client confirms.
-             * =====================================================================
-             */
-            ?>
-            <?php if (false): ?>
-                <?php if (can('dashboard.view')): ?>
+            <?php /* Admin / Reception / Super Admin — full menus restored */ ?>
+            <?php if (can('dashboard.view')): ?>
                 <div class="nav-section">
                     <a class="nav-link <?= active_menu('dashboard') ?>" href="<?= app_url('dashboard') ?>" title="Dashboard">
                         <i class="bi bi-grid-1x2"></i><span>Dashboard</span>
@@ -67,11 +26,11 @@
 
                 <?php if (can('appointments.view') || can('follow_ups.view')): ?>
                 <div class="nav-section">
-                    <button class="nav-toggle <?= menu_open(['calendar','appointments','queue','follow-ups']) ?>" type="button" data-target="menuFrontDeskHidden">
+                    <button class="nav-toggle <?= menu_open(['calendar','appointments','queue','follow-ups']) ?>" type="button" data-target="menuFrontDesk">
                         <span><i class="bi bi-reception-4"></i><span class="label">Front Desk</span></span>
                         <i class="bi bi-chevron-down chevron"></i>
                     </button>
-                    <div class="nav-submenu <?= menu_open(['calendar','appointments','queue','follow-ups']) ?>" id="menuFrontDeskHidden">
+                    <div class="nav-submenu <?= menu_open(['calendar','appointments','queue','follow-ups']) ?>" id="menuFrontDesk">
                         <?php if (can('appointments.view')): ?>
                         <a class="nav-link <?= active_menu('calendar') ?>" href="<?= app_url('calendar') ?>"><i class="bi bi-calendar3"></i><span>Calendar</span></a>
                         <a class="nav-link <?= active_menu('queue') ?>" href="<?= app_url('queue') ?>"><i class="bi bi-people"></i><span>Today's Walk-in Patients</span></a>
@@ -82,17 +41,22 @@
                         <?php if (can('follow_ups.view') && (\App\Core\Auth::hasRole('super_admin') || \App\Core\Auth::hasRole('admin') || \App\Core\Auth::hasRole('doctor'))): ?>
                         <a class="nav-link <?= active_menu('follow-ups') ?>" href="<?= app_url('follow-ups') ?>"><i class="bi bi-arrow-repeat"></i><span>Follow-Ups</span></a>
                         <?php endif; ?>
+                        <?php if (can('patients.add') || can('appointments.add')): ?>
+                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#walkinAddPatientModal">
+                            <i class="bi bi-person-plus"></i><span>Add Walk-in Patient</span>
+                        </a>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <?php endif; ?>
 
                 <?php if (can('patients.view')): ?>
                 <div class="nav-section">
-                    <button class="nav-toggle <?= menu_open(['patients']) ?>" type="button" data-target="menuPatientsHidden">
+                    <button class="nav-toggle <?= menu_open(['patients']) ?>" type="button" data-target="menuPatients">
                         <span><i class="bi bi-person-vcard"></i><span class="label">Patients</span></span>
                         <i class="bi bi-chevron-down chevron"></i>
                     </button>
-                    <div class="nav-submenu <?= menu_open(['patients']) ?>" id="menuPatientsHidden">
+                    <div class="nav-submenu <?= menu_open(['patients']) ?>" id="menuPatients">
                         <?php
                         $reqPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
                         $isPatientCreate = str_contains($reqPath, '/patients/create');
@@ -110,11 +74,11 @@
 
                 <?php if (can('visits.view') || can('treatments.view') || can('prescriptions.view')): ?>
                 <div class="nav-section">
-                    <button class="nav-toggle <?= menu_open(['visits','treatment-plans','prescriptions']) ?>" type="button" data-target="menuClinicalHidden">
+                    <button class="nav-toggle <?= menu_open(['visits','treatment-plans','prescriptions']) ?>" type="button" data-target="menuClinical">
                         <span><i class="bi bi-heart-pulse"></i><span class="label">Clinical</span></span>
                         <i class="bi bi-chevron-down chevron"></i>
                     </button>
-                    <div class="nav-submenu <?= menu_open(['visits','treatment-plans','prescriptions']) ?>" id="menuClinicalHidden">
+                    <div class="nav-submenu <?= menu_open(['visits','treatment-plans','prescriptions']) ?>" id="menuClinical">
                         <?php if (can('visits.view')): ?>
                         <a class="nav-link <?= active_menu('visits') ?>" href="<?= app_url('visits') ?>"><i class="bi bi-clipboard2-pulse"></i><span>Patient Visits</span></a>
                         <?php endif; ?>
@@ -130,11 +94,11 @@
 
                 <?php if (can('doctors.view') || can('reference_doctors.view') || can('treatment_masters.view') || can('medicine_masters.view') || can('lab_masters.view') || can('appointment_statuses.view')): ?>
                 <div class="nav-section">
-                    <button class="nav-toggle <?= menu_open(['doctors','reference-doctors','treatment-masters','medicines','lab-masters','appointment-statuses']) ?>" type="button" data-target="menuMastersHidden">
+                    <button class="nav-toggle <?= menu_open(['doctors','reference-doctors','treatment-masters','medicines','lab-masters','appointment-statuses']) ?>" type="button" data-target="menuMasters">
                         <span><i class="bi bi-database"></i><span class="label">Masters</span></span>
                         <i class="bi bi-chevron-down chevron"></i>
                     </button>
-                    <div class="nav-submenu <?= menu_open(['doctors','reference-doctors','treatment-masters','medicines','lab-masters','appointment-statuses']) ?>" id="menuMastersHidden">
+                    <div class="nav-submenu <?= menu_open(['doctors','reference-doctors','treatment-masters','medicines','lab-masters','appointment-statuses']) ?>" id="menuMasters">
                         <?php if (can('doctors.view')): ?>
                         <a class="nav-link <?= active_menu('doctors') ?>" href="<?= app_url('doctors') ?>"><i class="bi bi-person-badge"></i><span>Doctors</span></a>
                         <?php endif; ?>
@@ -159,11 +123,11 @@
 
                 <?php if (can('billing.view') || can('quotations.view') || can('payments.view') || can('outstanding.view')): ?>
                 <div class="nav-section">
-                    <button class="nav-toggle <?= menu_open(['billing','quotations','payments','outstanding']) ?>" type="button" data-target="menuAccountsHidden">
+                    <button class="nav-toggle <?= menu_open(['billing','quotations','payments','outstanding']) ?>" type="button" data-target="menuAccounts">
                         <span><i class="bi bi-cash-coin"></i><span class="label">Accounts</span></span>
                         <i class="bi bi-chevron-down chevron"></i>
                     </button>
-                    <div class="nav-submenu <?= menu_open(['billing','quotations','payments','outstanding']) ?>" id="menuAccountsHidden">
+                    <div class="nav-submenu <?= menu_open(['billing','quotations','payments','outstanding']) ?>" id="menuAccounts">
                         <?php if (can('billing.view')): ?>
                         <a class="nav-link <?= active_menu('billing') ?>" href="<?= app_url('billing') ?>"><i class="bi bi-receipt"></i><span>Billing</span></a>
                         <?php endif; ?>
@@ -182,11 +146,11 @@
 
                 <?php if (can('inventory.view') || can('suppliers.view') || can('purchases.view')): ?>
                 <div class="nav-section">
-                    <button class="nav-toggle <?= menu_open(['inventory','suppliers','purchases']) ?>" type="button" data-target="menuInventoryHidden">
+                    <button class="nav-toggle <?= menu_open(['inventory','suppliers','purchases']) ?>" type="button" data-target="menuInventory">
                         <span><i class="bi bi-box-seam"></i><span class="label">Inventory</span></span>
                         <i class="bi bi-chevron-down chevron"></i>
                     </button>
-                    <div class="nav-submenu <?= menu_open(['inventory','suppliers','purchases']) ?>" id="menuInventoryHidden">
+                    <div class="nav-submenu <?= menu_open(['inventory','suppliers','purchases']) ?>" id="menuInventory">
                         <?php if (can('inventory.view')): ?>
                         <a class="nav-link <?= active_menu('inventory') ?>" href="<?= app_url('inventory') ?>"><i class="bi bi-boxes"></i><span>Items</span></a>
                         <?php endif; ?>
@@ -210,11 +174,11 @@
 
                 <?php if (can('users.view') || can('roles.view') || can('approvals.view') || can('audit_logs.view') || can('settings.view')): ?>
                 <div class="nav-section">
-                    <button class="nav-toggle <?= menu_open(['users','roles','approvals','audit-logs','settings']) ?>" type="button" data-target="menuAdminHidden">
+                    <button class="nav-toggle <?= menu_open(['users','roles','approvals','audit-logs','settings']) ?>" type="button" data-target="menuAdmin">
                         <span><i class="bi bi-gear"></i><span class="label">Administration</span></span>
                         <i class="bi bi-chevron-down chevron"></i>
                     </button>
-                    <div class="nav-submenu <?= menu_open(['users','roles','approvals','audit-logs','settings']) ?>" id="menuAdminHidden">
+                    <div class="nav-submenu <?= menu_open(['users','roles','approvals','audit-logs','settings']) ?>" id="menuAdmin">
                         <?php if (can('users.view')): ?>
                         <a class="nav-link <?= active_menu('users') ?>" href="<?= app_url('users') ?>"><i class="bi bi-people"></i><span>Users</span></a>
                         <?php endif; ?>
@@ -233,7 +197,6 @@
                     </div>
                 </div>
                 <?php endif; ?>
-            <?php endif; /* end hidden full admin menus */ ?>
 
         <?php else: ?>
             <?php /* Doctor / other roles — clinical menus */ ?>

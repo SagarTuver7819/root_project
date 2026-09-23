@@ -304,6 +304,10 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
                                 <textarea class="form-control" id="tcRemarks" rows="2" placeholder="Treatment remarks..."></textarea>
                             </div>
                             <div class="col-12">
+                                <label class="form-label">Consent Book Number</label>
+                                <input class="form-control" type="text" id="tcConsentBook" placeholder="Aaje kareli treatment no consent book no." maxlength="100">
+                            </div>
+                            <div class="col-12">
                                 <label class="form-label">Next Appointment Date</label>
                                 <input class="form-control" type="date" id="tcNextApptDate">
                             </div>
@@ -325,10 +329,6 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
                                 <div class="alert alert-warning small d-none mb-0 mt-2 py-2" id="tcConflictWarn">
                                     <i class="bi bi-exclamation-triangle me-1"></i><span id="tcConflictText">Aa time e doctor ni biji appointment che.</span>
                                 </div>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">Consent Book Number</label>
-                                <input class="form-control" type="text" id="tcConsentBook" placeholder="Consent book no." maxlength="100">
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Specific Instruction for Patient</label>
@@ -702,8 +702,15 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
       }
       hideSuggestDropdown();
       modal && modal.show();
-      setTimeout(function () { input.focus(); }, 200);
     });
+  });
+
+  // Focus note box after modal is fully open (so no extra click needed).
+  modalEl?.addEventListener('shown.bs.modal', function () {
+    if (!input) return;
+    input.focus({ preventScroll: true });
+    const len = input.value.length;
+    try { input.setSelectionRange(len, len); } catch (err) { /* ignore */ }
   });
 
   input?.addEventListener('input', function () {

@@ -2855,6 +2855,104 @@ table.dataTable,
     height: 100%;
 }
 
+.book-slot-dialog {
+    width: 96vw;
+    max-width: 96vw;
+    margin: 1.5vh auto;
+    height: 97vh;
+}
+
+.book-slot-dialog .modal-content {
+    height: 100%;
+    border-radius: .75rem;
+    overflow: hidden;
+}
+
+.book-slot-body {
+    overflow: auto;
+    background: #f8fafc;
+    height: calc(97vh - 130px);
+    padding: 1rem 1.15rem !important;
+}
+
+.book-slot-layout {
+    display: grid;
+    grid-template-columns: minmax(380px, 46%) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: stretch;
+    min-height: 100%;
+}
+
+.book-slot-form-col {
+    min-width: 0;
+}
+
+.book-slot-day-col {
+    min-width: 0;
+}
+
+.book-cal-panel {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: .85rem;
+    padding: .75rem 1rem 1rem;
+    height: 100%;
+    min-height: calc(97vh - 180px);
+}
+
+.book-doctor-calendar {
+    min-height: calc(97vh - 260px);
+    height: calc(97vh - 260px);
+    background: #fff;
+    border-radius: .5rem;
+}
+
+.book-doctor-calendar .fc {
+    height: 100% !important;
+}
+
+.book-doctor-calendar .fc .fc-toolbar-title {
+    font-size: 1.05rem !important;
+    font-weight: 700;
+}
+
+.book-doctor-calendar .fc .fc-button {
+    border-radius: .65rem !important;
+    font-weight: 600;
+    font-size: .82rem !important;
+    text-transform: none !important;
+    padding: .4rem .8rem !important;
+}
+
+.book-doctor-calendar .fc-event.book-pick-slot {
+    z-index: 6 !important;
+    box-shadow: 0 0 0 2px rgba(14, 165, 233, .55), 0 6px 14px rgba(2, 132, 199, .35) !important;
+    font-weight: 700;
+}
+
+@media (max-width: 991.98px) {
+    .book-slot-dialog {
+        width: 98vw;
+        max-width: 98vw;
+        height: 98vh;
+        margin: 1vh auto;
+    }
+
+    .book-slot-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .book-slot-day-col {
+        order: -1;
+    }
+
+    .book-cal-panel,
+    .book-doctor-calendar {
+        min-height: 420px;
+        height: 420px;
+    }
+}
+
 /* Queue kanban polish */
 .kanban-column {
     background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
