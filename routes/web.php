@@ -92,6 +92,7 @@ $router->group(['middleware' => ['auth']], function ($router) {
     $router->post('/appointments', [AppointmentController::class, 'store'], ['csrf', 'permission:appointments.add']);
     $router->get('/appointments/{id}/edit', [AppointmentController::class, 'edit'], ['permission:appointments.edit']);
     $router->post('/appointments/{id}', [AppointmentController::class, 'update'], ['csrf', 'permission:appointments.edit']);
+    $router->post('/appointments/{id}/reschedule', [AppointmentController::class, 'reschedule'], ['csrf', 'permission:appointments.edit']);
     $router->post('/appointments/{id}/delete', [AppointmentController::class, 'destroy'], ['csrf', 'permission:appointments.delete']);
     $router->post('/appointments/{id}/status', [AppointmentController::class, 'changeStatus'], ['csrf', 'permission:appointments.status_change']);
     $router->get('/queue', [AppointmentController::class, 'queue'], ['permission:appointments.view']);

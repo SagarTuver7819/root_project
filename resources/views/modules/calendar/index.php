@@ -34,7 +34,7 @@ require __DIR__ . '/../../components/page-header.php';
                     </div>
                 </div>
             </div>
-            <div class="text-muted small mt-2">Recent week view · click appointment → open treatment / visit</div>
+            <div class="text-muted small mt-2">Drag &amp; drop appointment to change date/time · click → Treatment Plan</div>
         </div>
     </div>
 
@@ -787,6 +787,9 @@ document.addEventListener('DOMContentLoaded', function () {
       nowIndicator: true,
       selectable: true,
       selectMirror: true,
+      editable: <?= can('appointments.edit') ? 'true' : 'false' ?>,
+      eventStartEditable: <?= can('appointments.edit') ? 'true' : 'false' ?>,
+      eventDurationEditable: <?= can('appointments.edit') ? 'true' : 'false' ?>,
       eventDisplay: 'block',
       dayMaxEvents: true,
       stickyHeaderDates: true,
@@ -800,10 +803,14 @@ document.addEventListener('DOMContentLoaded', function () {
           'Doctor: ' + (p.doctor_name || '—'),
           'Treatment: ' + (p.treatment_name || p.subtitle || p.visit_reason || '—'),
           'Number: ' + (p.mobile || '—'),
-          'Time: ' + (info.timeText || '')
+          'Time: ' + (info.timeText || ''),
+          'Tip: drag to reschedule'
         ].join('\n');
         info.el.setAttribute('title', tip);
         info.el.classList.add('fc-appt-card');
+        if (<?= can('appointments.edit') ? 'true' : 'false' ?>) {
+          info.el.style.cursor = 'grab';
+        }
       },
       eventContent: function (arg) {
         const p = arg.event.extendedProps || {};
@@ -861,7 +868,17 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         openBookModal(info.dateStr, timeStr);
       },
+      eventDrop: function (info) {
+        persistCalendarMove(info);
+      },
+      eventResize: function (info) {
+        persistCalendarMove(info);
+      },
       eventClick: function (info) {
+        // After drag, ignore the click that can fire on some browsers
+        if (info.jsEvent && info.jsEvent.defaultPrevented) return;
+        if (cal.__rootsDragging) return;
+
         const props = info.event.extendedProps || {};
         const entryType = props.entry_type || 'appointment';
         const patientId = props.patient_id || '';
@@ -881,8 +898,80 @@ document.addEventListener('DOMContentLoaded', function () {
         if (id) {
           window.location.href = '<?= app_url('queue') ?>?id=' + encodeURIComponent(id);
         }
+      },
+      eventDragStart: function () {
+        cal.__rootsDragging = true;
+      },
+      eventDragStop: function () {
+        setTimeout(function () { cal.__rootsDragging = false; }, 250);
+      },
+      eventResizeStart: function () {
+        cal.__rootsDragging = true;
+      },
+      eventResizeStop: function () {
+        setTimeout(function () { cal.__rootsDragging = false; }, 250);
       }
     });
+
+    function persistCalendarMove(info) {
+      const ev = info.event;
+      const id = ev.id;
+      if (!id) {
+        info.revert();
+        return;
+      }
+      const start = ev.start;
+      if (!start) {
+        info.revert();
+        return;
+      }
+      let end = ev.end;
+      if (!end) {
+        end = new Date(start.getTime() + 30 * 60 * 1000);
+      }
+      const dateStr = start.getFullYear() + '-' + pad2(start.getMonth() + 1) + '-' + pad2(start.getDate());
+      const startTime = pad2(start.getHours()) + ':' + pad2(start.getMinutes()) + ':00';
+      const endTime = pad2(end.getHours()) + ':' + pad2(end.getMinutes()) + ':00';
+      const url = <?= json_encode(rtrim(app_url('appointments'), '/')) ?> + '/' + encodeURIComponent(id) + '/reschedule';
+
+      function postMove(force) {
+        return RootsApp.post(url, {
+          appointment_date: dateStr,
+          start_time: startTime,
+          end_time: endTime,
+          force_overlap: force ? '1' : '0'
+        });
+      }
+
+      postMove(false).done(function (res) {
+        if (window.toastr) {
+          toastr.success((res && res.message) || 'Appointment time updated.');
+        }
+      }).fail(function (xhr) {
+        const body = xhr.responseJSON || {};
+        const msg = body.message || 'Unable to reschedule appointment.';
+        if (xhr.status === 409 && body.data && body.data.code === 'doctor_overlap') {
+          if (window.confirm(msg + '\n\nSame time e biji appointment che. Force book anyway?')) {
+            postMove(true).done(function (res) {
+              if (window.toastr) {
+                toastr.success((res && res.message) || 'Appointment time updated.');
+              }
+            }).fail(function (xhr2) {
+              info.revert();
+              if (window.toastr) {
+                toastr.error((xhr2.responseJSON && xhr2.responseJSON.message) || 'Unable to reschedule.');
+              }
+            });
+            return;
+          }
+        }
+        info.revert();
+        if (window.toastr) {
+          toastr.error(msg);
+        }
+      });
+    }
+
     cal.render();
     window.rootsCalendar = cal;
     document.getElementById('doctorFilter').onchange = () => cal.refetchEvents();

@@ -342,25 +342,22 @@ class PatientController extends Controller
 
         AuditService::log('patients', 'create', $id, null, ['patient_code' => $code, 'name' => $data['name']]);
 
-        $action = $request->input('submit_action');
+        $action = (string) $request->input('submit_action', 'save');
         $doctorId = (int) $request->input('doctor_id');
-        $redirect = 'patients/' . $id . '?tab=clinical';
+        $redirect = 'patients/' . $id;
         $message = 'Patient created successfully.';
 
-        // If user explicitly clicked "Save & Send to Waiting" or receptionist selected a doctor
-        if ($action === 'waiting' || (!empty($doctorId) && $action !== 'save_new' && $action !== 'book')) {
-            if (!$doctorId) {
-                $firstDoc = Database::fetch('SELECT id FROM doctors WHERE deleted_at IS NULL AND is_active = 1 ORDER BY id ASC LIMIT 1');
-                $doctorId = $firstDoc ? (int) $firstDoc['id'] : 0;
-            }
-            if ($doctorId > 0) {
+        if ($action === 'waiting') {
+            // Waiting ONLY with explicit Consulting Doctor — never auto-pick a doctor.
+            if ($doctorId <= 0) {
+                $message = 'Patient created successfully. Waiting queue mate Consulting Doctor select kari ne "Save & Send to Waiting" dabavo.';
+            } else {
                 try {
                     $aptService = new AppointmentService();
-                    $aptId = $aptService->assignWalkIn((int) $id, $doctorId, $request->input('notes') ?: 'New patient walk-in');
+                    $aptService->assignWalkIn((int) $id, $doctorId, $request->input('notes') ?: 'New patient walk-in');
                     $redirect = 'queue?view=sheet&highlight=' . urlencode($code);
                     $message = 'Patient registered and added to Waiting queue successfully.';
                 } catch (\Throwable $ex) {
-                    // Fallback if assigning walk-in fails
                     $message = 'Patient created successfully (could not add to waiting queue: ' . $ex->getMessage() . ').';
                 }
             }
@@ -369,6 +366,7 @@ class PatientController extends Controller
         } elseif ($action === 'book') {
             $redirect = 'calendar?patient_id=' . $id . ($doctorId ? '&doctor_id=' . $doctorId : '');
         }
+        // Plain "Save" → patient only, no appointment / waiting.
 
         if ($request->isAjax()) {
             $this->jsonSuccess($message, [

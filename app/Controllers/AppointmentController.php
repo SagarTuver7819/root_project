@@ -265,6 +265,66 @@ class AppointmentController extends \App\Core\Controller
         $this->finish($request, 'Appointment updated successfully.', 'appointments');
     }
 
+    /**
+     * Calendar drag/drop + resize — only date/time change.
+     */
+    public function reschedule(Request $request, string $id): void
+    {
+        $old = $this->requireOwnAppointment($id);
+        $data = $this->validate($request, [
+            'appointment_date' => 'required',
+            'start_time' => 'required',
+            'end_time' => 'required',
+        ]);
+
+        $date = substr((string) $data['appointment_date'], 0, 10);
+        $startTime = (string) $data['start_time'];
+        $endTime = (string) $data['end_time'];
+        if (preg_match('/^\d{2}:\d{2}$/', $startTime)) {
+            $startTime .= ':00';
+        }
+        if (preg_match('/^\d{2}:\d{2}$/', $endTime)) {
+            $endTime .= ':00';
+        }
+
+        $doctorId = (int) ($old['doctor_id'] ?? 0);
+        $scopedDoctorId = current_doctor_id();
+        if ($scopedDoctorId) {
+            $doctorId = (int) $scopedDoctorId;
+        }
+
+        try {
+            $this->appointments->assertSlotBookable(
+                $doctorId,
+                $date,
+                $startTime,
+                $endTime,
+                (int) $id,
+                true,
+                (string) $request->input('force_overlap', '') === '1'
+            );
+            $payload = [
+                'appointment_date' => $date,
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+                'updated_at' => $this->now(),
+            ];
+            Database::update('appointments', $payload, 'id = :_id', ['_id' => (int) $id]);
+        } catch (\App\Services\DoctorSlotOverlapException $e) {
+            $this->jsonError($e->getMessage(), ['code' => 'doctor_overlap'], 409);
+        } catch (\Throwable $e) {
+            $this->jsonError($e->getMessage());
+        }
+
+        $this->audit('appointments', 'reschedule', (int) $id, $old, $payload);
+        $this->jsonSuccess('Appointment time updated.', [
+            'id' => (int) $id,
+            'appointment_date' => $date,
+            'start_time' => $startTime,
+            'end_time' => $endTime,
+        ]);
+    }
+
     public function destroy(Request $request, string $id): void
     {
         $this->requireOwnAppointment($id);

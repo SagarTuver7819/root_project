@@ -110,7 +110,7 @@ $renderReferenceDoctorField = static function (string $selected, array $doctors,
                                 <option value="<?= e($d['id']) ?>"><?= e(doctor_label($d['name'])) ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <div class="form-text">Optional · auto adds patient to doctor's waiting queue</div>
+                        <div class="form-text">Optional · Waiting queue ma mukva mate doctor select kari "Save &amp; Send to Waiting" dabavo</div>
                     </div>
                     <div class="col-md-3">
                         <?php $renderReferenceDoctorField($refSelected, $referenceDoctors ?? [], $canQuickAddRef); ?>
