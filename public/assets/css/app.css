@@ -2150,7 +2150,12 @@ table.dataTable,
     flex-wrap: nowrap;
     align-items: stretch;
     gap: .5rem;
-    max-width: 520px;
+    max-width: 680px;
+}
+
+.suggested-plan-desc-amount .suggested-plan-parts {
+    flex: 0 0 140px;
+    width: 140px;
 }
 
 .suggested-plan-desc-amount .suggested-plan-desc {
@@ -2204,7 +2209,8 @@ table.dataTable,
         max-width: none;
     }
 
-    .suggested-plan-amount-wrap {
+    .suggested-plan-amount-wrap,
+    .suggested-plan-desc-amount .suggested-plan-parts {
         flex: 1 1 100%;
         width: 100%;
     }

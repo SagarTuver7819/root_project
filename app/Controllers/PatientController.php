@@ -582,7 +582,8 @@ class PatientController extends Controller
                     'SELECT id, name FROM doctors WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name ASC'
                 );
                 $savedItems = Database::fetchAll(
-                    "SELECT id, description, doctor_id, teeth, amount, paid_amount, payment_status, sort_order, status
+                    "SELECT id, description, doctor_id, teeth, amount, paid_amount, payment_status, sort_order, status,
+                            total_parts, completed_parts
                      FROM patient_suggested_treatments
                      WHERE patient_id = ?
                        AND (status IS NULL OR status = '' OR status = 'pending')
@@ -991,6 +992,7 @@ class PatientController extends Controller
                 'doctor_id' => (int) ($item['doctor_id'] ?? 0) ?: null,
                 'teeth' => trim((string) ($item['teeth'] ?? '')),
                 'amount' => max(0, (float) ($item['amount'] ?? 0)),
+                'total_parts' => min(20, max(1, (int) ($item['total_parts'] ?? 1))),
             ];
         }
 
@@ -1003,7 +1005,7 @@ class PatientController extends Controller
         }
 
         $existing = Database::fetchAll(
-            "SELECT id, description, doctor_id, teeth, amount, paid_amount, payment_status
+            "SELECT id, description, doctor_id, teeth, amount, paid_amount, payment_status, completed_parts
              FROM patient_suggested_treatments
              WHERE patient_id = ?
                AND (status IS NULL OR status = '' OR status = 'pending')",
@@ -1024,6 +1026,7 @@ class PatientController extends Controller
                 'doctor_id' => $item['doctor_id'],
                 'teeth' => $item['teeth'] !== '' ? $item['teeth'] : null,
                 'amount' => $item['amount'],
+                'total_parts' => $item['total_parts'],
                 'sort_order' => $sort,
                 'status' => 'pending',
                 'updated_by' => Auth::id(),
@@ -1032,6 +1035,11 @@ class PatientController extends Controller
             if ($item['id'] > 0 && in_array($item['id'], $existingIds, true)) {
                 $ex = $existingById[$item['id']] ?? null;
                 $paidExisting = (float) ($ex['paid_amount'] ?? 0);
+                // Pending line: sittings must stay above parts already done
+                $doneParts = (int) ($ex['completed_parts'] ?? 0);
+                if ($payload['total_parts'] <= $doneParts) {
+                    $payload['total_parts'] = $doneParts + 1;
+                }
                 // Payment start / done — name, amount, teeth, doctor lock (server-side)
                 if ($paidExisting > 0 && $ex) {
                     $payload['description'] = (string) ($ex['description'] ?? $payload['description']);
@@ -1241,6 +1249,8 @@ class PatientController extends Controller
             'payment_status' => "VARCHAR(30) NOT NULL DEFAULT 'pending'",
             'paid_amount' => 'DECIMAL(12,2) NOT NULL DEFAULT 0',
             'payment_bill_id' => 'INT UNSIGNED NULL',
+            'total_parts' => 'TINYINT UNSIGNED NOT NULL DEFAULT 1',
+            'completed_parts' => 'TINYINT UNSIGNED NOT NULL DEFAULT 0',
         ];
         foreach ($completionCols as $colName => $def) {
             $exists = Database::fetch("SHOW COLUMNS FROM patient_suggested_treatments LIKE '{$colName}'");
@@ -1442,28 +1452,54 @@ class PatientController extends Controller
             }
         }
 
-        // Completed row keeps next appt info for history; appointment_id stays on next treatment
-        Database::update('patient_suggested_treatments', [
-            'status' => 'completed',
-            'remarks' => $remarks !== '' ? $remarks : null,
-            'next_appointment_date' => $nextDate !== '' ? $nextDate : null,
-            'next_appointment_time' => $nextTime !== '' ? $nextTime : null,
-            'patient_instruction' => $instruction !== '' ? $instruction : null,
-            'amount' => $payAmount,
-            'consent_book_number' => $consent !== '' ? $consent : null,
-            'payment_status' => $paymentStatus,
-            'paid_amount' => $existingPaid,
-            'completed_at' => $now,
-            'completed_by' => Auth::id(),
-            'updated_by' => Auth::id(),
-            'updated_at' => $now,
-        ], 'id = :_id AND patient_id = :_pid', [
-            '_id' => $rowId,
-            '_pid' => $patientId,
-        ]);
+        $totalParts = max(1, (int) ($row['total_parts'] ?? 1));
+        $doneParts = max(0, (int) ($row['completed_parts'] ?? 0)) + 1;
+        $isFinalPart = $doneParts >= $totalParts;
 
-        AuditService::log('patients', 'treatment_complete', $patientId, $row, [
+        if (!$isFinalPart) {
+            // Sitting done; line stays pending for the remaining parts
+            Database::update('patient_suggested_treatments', [
+                'completed_parts' => $doneParts,
+                'remarks' => $remarks !== '' ? $remarks : ($row['remarks'] ?? null),
+                'next_appointment_date' => $nextDate !== '' ? $nextDate : null,
+                'next_appointment_time' => $nextTime !== '' ? $nextTime : null,
+                'patient_instruction' => $instruction !== '' ? $instruction : ($row['patient_instruction'] ?? null),
+                'amount' => $payAmount,
+                'consent_book_number' => $consent !== '' ? $consent : ($row['consent_book_number'] ?? null),
+                'payment_status' => $paymentStatus,
+                'updated_by' => Auth::id(),
+                'updated_at' => $now,
+            ], 'id = :_id AND patient_id = :_pid', [
+                '_id' => $rowId,
+                '_pid' => $patientId,
+            ]);
+        } else {
+            // Completed row keeps next appt info for history; appointment_id stays on next treatment
+            Database::update('patient_suggested_treatments', [
+                'completed_parts' => $totalParts,
+                'status' => 'completed',
+                'remarks' => $remarks !== '' ? $remarks : null,
+                'next_appointment_date' => $nextDate !== '' ? $nextDate : null,
+                'next_appointment_time' => $nextTime !== '' ? $nextTime : null,
+                'patient_instruction' => $instruction !== '' ? $instruction : null,
+                'amount' => $payAmount,
+                'consent_book_number' => $consent !== '' ? $consent : null,
+                'payment_status' => $paymentStatus,
+                'paid_amount' => $existingPaid,
+                'completed_at' => $now,
+                'completed_by' => Auth::id(),
+                'updated_by' => Auth::id(),
+                'updated_at' => $now,
+            ], 'id = :_id AND patient_id = :_pid', [
+                '_id' => $rowId,
+                '_pid' => $patientId,
+            ]);
+        }
+
+        AuditService::log('patients', $isFinalPart ? 'treatment_complete' : 'treatment_part_complete', $patientId, $row, [
             'item_id' => $rowId,
+            'part' => $doneParts,
+            'total_parts' => $totalParts,
             'amount' => $payAmount,
             'paid_amount' => $existingPaid,
             'consent_book_number' => $consent,
@@ -1481,7 +1517,9 @@ class PatientController extends Controller
             }
         }
 
-        $msg = 'Treatment marked as completed.';
+        $msg = $isFinalPart
+            ? 'Treatment marked as completed.'
+            : 'Part ' . $doneParts . '/' . $totalParts . ' complete. Baki ' . ($totalParts - $doneParts) . ' sitting pending.';
         if ($appointmentId) {
             $nextLabel = trim((string) ($nextTreatment['description'] ?? ''));
             $msg .= ' Next appointment calendar ma add thai gayu'
@@ -1523,6 +1561,9 @@ class PatientController extends Controller
             'id' => $rowId,
             'appointment_id' => $appointmentId,
             'next_treatment_id' => $nextTreatmentId ?: null,
+            'part' => $doneParts,
+            'total_parts' => $totalParts,
+            'is_final' => $isFinalPart,
             'redirect' => App::url('patients/' . $patientId . '?tab=plan'),
         ]);
     }

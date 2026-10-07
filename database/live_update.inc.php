@@ -131,6 +131,8 @@ function roots_live_update(): array
             'payment_status' => "VARCHAR(30) NOT NULL DEFAULT 'pending'",
             'paid_amount' => 'DECIMAL(12,2) NOT NULL DEFAULT 0',
             'payment_bill_id' => 'INT UNSIGNED NULL',
+            'total_parts' => 'TINYINT UNSIGNED NOT NULL DEFAULT 1',
+            'completed_parts' => 'TINYINT UNSIGNED NOT NULL DEFAULT 0',
         ];
         foreach ($pstCompletionCols as $col => $def) {
             if (!$columnExists('patient_suggested_treatments', $col)) {

@@ -85,7 +85,6 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
 
     <div class="suggested-plan-head">
         <h3 class="h5 mb-1">Suggested Treatment Plan <span class="badge text-bg-warning ms-1">Pending</span></h3>
-        <p class="text-muted small mb-0">Tooth-wise hierarchy — ek tooth, ek line. Amount = full treatment. Navi / unpaid treatment par <strong>Add appointment</strong> chalse. Payment/complete thay pachhi calendar button hide. Next visit booking Complete modal mathi pan thase.</p>
     </div>
 
     <div id="suggestedPlanRows" class="suggested-plan-list">
@@ -110,6 +109,9 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
             $teeth = trim((string) ($row['teeth'] ?? ''));
             $toothList = $teeth === '' ? [] : array_values(array_filter(array_map('trim', explode(',', $teeth))));
             $primaryTooth = $toothList[0] ?? '';
+            $totalParts = max(1, (int) ($row['total_parts'] ?? 1));
+            $doneParts = max(0, (int) ($row['completed_parts'] ?? 0));
+            $nextPart = min($totalParts, $doneParts + 1);
             ?>
             <div class="suggested-plan-row<?= $index === 0 ? ' is-active' : '' ?><?= $isLocked ? ' is-locked' : '' ?>" data-index="<?= (int) $index ?>" data-tooth="<?= e($primaryTooth) ?>" data-locked="<?= $isLocked ? '1' : '0' ?>">
                 <div class="suggested-plan-num"><?= (int) $n ?></div>
@@ -142,7 +144,24 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
                                 <?= ($canEdit && !$isLocked) ? '' : 'readonly' ?>
                             >
                         </div>
+                        <select class="form-select no-select2 suggested-plan-parts" name="items[<?= (int) $index ?>][total_parts]"
+                                title="Ketla sitting / part ma treatment complete thase"
+                                data-auto="<?= $rowId === '' ? '1' : '0' ?>"
+                                data-done="<?= (int) $doneParts ?>"
+                                data-saved-total="<?= (int) $totalParts ?>"
+                                <?= $canEdit ? '' : 'disabled' ?>>
+                            <?php for ($p = 1; $p <= 12; $p++): ?>
+                                <option value="<?= $p ?>" <?= $p === $totalParts ? 'selected' : '' ?> <?= $p <= $doneParts ? 'disabled' : '' ?>>
+                                    <?= $p ?> <?= $p === 1 ? 'sitting' : 'sittings' ?>
+                                </option>
+                            <?php endfor; ?>
+                        </select>
                     </div>
+                    <?php if ($doneParts > 0): ?>
+                        <div class="small mt-1">
+                            <span class="badge text-bg-info">Part <?= (int) $doneParts ?>/<?= (int) $totalParts ?> done</span>
+                        </div>
+                    <?php endif; ?>
                     <?php if ($paidAmt > 0 || ($dueAmt > 0 && $amt !== '')): ?>
                         <div class="small mt-1">
                             <?php if ($paidAmt > 0 && $dueAmt <= 0): ?>
@@ -195,8 +214,9 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
                         <?php if ($canEdit): ?>
                             <button type="button" class="btn btn-success suggested-plan-complete"
                                 data-paid="<?= e(number_format($paidAmt, 2, '.', '')) ?>"
-                                data-due="<?= e(number_format($dueAmt, 2, '.', '')) ?>">
-                                <i class="bi bi-check2-circle me-1"></i>Treatment Complete
+                                data-due="<?= e(number_format($dueAmt, 2, '.', '')) ?>"
+                                data-done="<?= (int) $doneParts ?>">
+                                <i class="bi bi-check2-circle me-1"></i><span class="suggested-plan-complete-label"><?= $totalParts > 1 ? 'Part ' . (int) $nextPart . '/' . (int) $totalParts . ' Complete' : 'Treatment Complete' ?></span>
                             </button>
                         <?php endif; ?>
                         <?php if ($canEdit && $n > $minRows && !$isLocked): ?>
@@ -239,6 +259,12 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
                     <span class="suggested-plan-amount-prefix">₹</span>
                     <input class="form-control suggested-plan-amount" type="number" step="0.01" min="0" name="items[__INDEX__][amount]" placeholder="Amount">
                 </div>
+                <select class="form-select no-select2 suggested-plan-parts" name="items[__INDEX__][total_parts]"
+                        title="Ketla sitting / part ma treatment complete thase" data-auto="1" data-done="0">
+                    <?php for ($p = 1; $p <= 12; $p++): ?>
+                        <option value="<?= $p ?>" <?= $p === 1 ? 'selected' : '' ?>><?= $p ?> <?= $p === 1 ? 'sitting' : 'sittings' ?></option>
+                    <?php endfor; ?>
+                </select>
             </div>
             <div class="suggested-plan-teeth"></div>
             <div class="suggested-plan-actions">
@@ -253,8 +279,8 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
                         <i class="bi bi-calendar-plus me-1"></i>Add appointment in calendar
                     </button>
                 <?php endif; ?>
-                <button type="button" class="btn btn-success suggested-plan-complete" data-paid="0" data-due="0">
-                    <i class="bi bi-check2-circle me-1"></i>Treatment Complete
+                <button type="button" class="btn btn-success suggested-plan-complete" data-paid="0" data-due="0" data-done="0">
+                    <i class="bi bi-check2-circle me-1"></i><span class="suggested-plan-complete-label">Treatment Complete</span>
                 </button>
                 <button type="button" class="btn btn-outline-danger suggested-plan-remove" title="Remove">&times;</button>
             </div>
@@ -1050,11 +1076,75 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
     setTimeout(function () { tcCalendar && tcCalendar.updateSize(); }, 80);
   }
 
+  // Typical sittings per treatment (doctor can always change the dropdown)
+  const sittingRules = [
+    [/implant/i, 3],
+    [/denture/i, 4],
+    [/brace|ortho|aligner/i, 12],
+    [/rct|root\s*canal|pulpectomy|re-?rct/i, 3],
+    [/crown|cap|bridge|veneer|onlay|inlay|post\s*(and|&)?\s*core/i, 2],
+    [/surgical|wisdom|impact/i, 2],
+    [/extraction|scaling|cleaning|polish|filling|restoration|composite|gic|x-?ray|opg|iopa|consult|check\s*up|fluoride|sealant/i, 1]
+  ];
+
+  function suggestSittings(desc) {
+    const text = String(desc || '');
+    for (let i = 0; i < sittingRules.length; i++) {
+      if (sittingRules[i][0].test(text)) return sittingRules[i][1];
+    }
+    return null;
+  }
+
+  function rowPartsInfo(row) {
+    const sel = row.querySelector('.suggested-plan-parts');
+    const total = Math.max(1, parseInt(sel?.value || '1', 10) || 1);
+    const done = Math.max(0, parseInt(sel?.dataset.done || '0', 10) || 0);
+    return { total: total, done: done, next: Math.min(total, done + 1) };
+  }
+
+  function syncCompleteLabel(row) {
+    const label = row.querySelector('.suggested-plan-complete-label');
+    if (!label) return;
+    const info = rowPartsInfo(row);
+    label.textContent = info.total > 1
+      ? 'Part ' + info.next + '/' + info.total + ' Complete'
+      : 'Treatment Complete';
+  }
+
+  list.addEventListener('input', function (e) {
+    const desc = e.target.closest('.suggested-plan-desc');
+    if (!desc) return;
+    const row = desc.closest('.suggested-plan-row');
+    const sel = row?.querySelector('.suggested-plan-parts');
+    if (!sel || sel.dataset.auto !== '1' || sel.disabled) return;
+    const n = suggestSittings(desc.value);
+    if (n !== null) {
+      sel.value = String(n);
+      syncCompleteLabel(row);
+    }
+  });
+
+  list.addEventListener('change', function (e) {
+    const sel = e.target.closest('.suggested-plan-parts');
+    if (!sel) return;
+    sel.dataset.auto = '0';
+    syncCompleteLabel(sel.closest('.suggested-plan-row'));
+  });
+
   function fillNextTreatmentOptions(currentRow) {
     const sel = document.getElementById('tcNextTreatmentId');
     if (!sel) return;
     const currentId = (currentRow.querySelector('input[name*="[id]"]')?.value || '').trim();
     sel.innerHTML = '<option value="">— Select next treatment —</option>';
+    const parts = rowPartsInfo(currentRow);
+    if (currentId && parts.next < parts.total) {
+      const desc = (currentRow.querySelector('.suggested-plan-desc')?.value || '').trim();
+      const same = document.createElement('option');
+      same.value = currentId;
+      same.textContent = desc + ' — Part ' + (parts.next + 1) + '/' + parts.total + ' (next sitting)';
+      sel.appendChild(same);
+      sel.value = currentId;
+    }
     list.querySelectorAll('.suggested-plan-row').forEach(function (r) {
       if (r === currentRow) return;
       const id = (r.querySelector('input[name*="[id]"]')?.value || '').trim();
@@ -1074,6 +1164,8 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
       sel.appendChild(opt);
     }
   }
+
+  let tcIsFinalPart = true;
 
   function syncTcCollectAmountFromDue() {
     const dueEl = document.getElementById('tcDueDisplay');
@@ -1107,10 +1199,25 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
       toastr.warning('Pehla plan Save karo, pachhi Treatment Complete kari shakay.');
       return;
     }
+    const parts = rowPartsInfo(row);
+    const savedTotal = parseInt(row.querySelector('.suggested-plan-parts')?.dataset.savedTotal || '', 10);
+    if (!Number.isNaN(savedTotal) && savedTotal !== parts.total) {
+      toastr.warning('Sittings badlya che — pehla plan Save karo, pachhi Complete karo.');
+      return;
+    }
     tcActiveRow = row;
+    tcIsFinalPart = parts.next >= parts.total;
     document.getElementById('tcItemId').value = itemId;
     document.getElementById('tcDoctorId').value = doctorId;
-    document.getElementById('tcTreatmentLabel').textContent = desc;
+    document.getElementById('tcTreatmentLabel').textContent = parts.total > 1
+      ? desc + ' (Part ' + parts.next + '/' + parts.total + ')'
+      : desc;
+    const submitBtn = document.getElementById('tcSubmitBtn');
+    if (submitBtn) {
+      submitBtn.innerHTML = '<i class="bi bi-check2 me-1"></i>' + (tcIsFinalPart
+        ? 'Ok — Mark Completed'
+        : 'Ok — Part ' + parts.next + '/' + parts.total + ' Completed');
+    }
     document.getElementById('tcRemarks').value = '';
     document.getElementById('tcNextApptDate').value = '';
     document.getElementById('tcNextApptTime').value = '';
@@ -1241,7 +1348,7 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
       }
       toastr.success(res.message || 'Treatment completed.');
       tcModal && tcModal.hide();
-      if (tcActiveRow && tcActiveRow.parentNode) {
+      if (tcIsFinalPart && tcActiveRow && tcActiveRow.parentNode) {
         tcActiveRow.remove();
       }
       setTimeout(function () { window.location.href = redirectTo; }, 300);
