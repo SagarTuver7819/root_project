@@ -97,6 +97,7 @@ $router->group(['middleware' => ['auth']], function ($router) {
     $router->post('/appointments/{id}/status', [AppointmentController::class, 'changeStatus'], ['csrf', 'permission:appointments.status_change']);
     $router->get('/queue', [AppointmentController::class, 'queue'], ['permission:appointments.view']);
     $router->post('/queue/walk-in', [AppointmentController::class, 'walkInExisting'], ['csrf', 'permission:appointments.add']);
+    $router->post('/queue/remark', [AppointmentController::class, 'saveQueueRemark'], ['csrf', 'permission:appointments.view']);
 
     $router->get('/doctors', [DoctorController::class, 'index'], ['permission:doctors.view']);
     $router->get('/doctors/datatable', [DoctorController::class, 'datatable'], ['permission:doctors.view']);

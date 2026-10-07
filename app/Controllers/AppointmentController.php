@@ -367,6 +367,27 @@ class AppointmentController extends \App\Core\Controller
             $doctors = array_values(array_filter($doctors, static fn ($d) => (int) $d['id'] === $scopedDoctorId));
         }
 
+        // Patients registered on this date without any appointment that day (plain "Save" from Add Patient).
+        $registeredOnly = [];
+        if (!$scopedDoctorId && ($doctorId === null || $doctorId === '')) {
+            $registeredOnly = Database::fetchAll(
+                "SELECT p.id AS patient_id, p.name AS patient_name, p.mobile, p.patient_code, p.age, p.dob, p.gender,
+                        p.notes AS patient_notes, p.created_at AS patient_created_at,
+                        rd.name AS reference_doctor_name
+                 FROM patients p
+                 LEFT JOIN reference_doctors rd ON rd.id = p.reference_doctor_id
+                 WHERE p.deleted_at IS NULL
+                   AND (p.registration_date = ? OR DATE(p.created_at) = ?)
+                   AND NOT EXISTS (
+                       SELECT 1 FROM appointments a
+                       WHERE a.patient_id = p.id AND a.appointment_date = ? AND a.deleted_at IS NULL
+                         AND IFNULL(a.entry_type, 'appointment') <> 'doctor_remark'
+                   )
+                 ORDER BY p.created_at ASC",
+                [$date, $date, $date]
+            );
+        }
+
         $this->view('modules/appointments/queue', [
             'title' => "Today's Walk-in Patients",
             'pageTitle' => "Today's Walk-in Patients",
@@ -374,6 +395,7 @@ class AppointmentController extends \App\Core\Controller
             'doctorId' => $doctorId,
             'lockedDoctorId' => $scopedDoctorId,
             'doctors' => $doctors,
+            'registeredOnly' => $registeredOnly,
             'queue' => Database::fetchAll(
                 'SELECT a.*, p.name AS patient_name, p.mobile, p.patient_code, p.age, p.dob, p.gender,
                         p.allergies, p.blood_group, p.registration_date AS patient_reg_date, p.created_at AS patient_created_at,
@@ -433,6 +455,41 @@ class AppointmentController extends \App\Core\Controller
             'id' => $id,
             'redirect' => app_url('queue?view=sheet&highlight=' . urlencode((string) ($patient['patient_code'] ?? ''))),
         ]);
+    }
+
+    /**
+     * Queue sheet: save remark from Treatment / Notes cell.
+     * type=appointment → appointments.notes, type=patient → patients.notes
+     */
+    public function saveQueueRemark(Request $request): void
+    {
+        $type = (string) $request->input('type', 'appointment');
+        $id = (int) $request->input('id', 0);
+        $remark = trim((string) $request->input('remark', ''));
+        if ($id <= 0) {
+            $this->jsonError('Invalid record.');
+        }
+
+        if ($type === 'patient') {
+            $patient = Database::fetch('SELECT id, notes FROM patients WHERE id = ? AND deleted_at IS NULL', [$id]);
+            if (!$patient) {
+                $this->jsonError('Patient not found.');
+            }
+            Database::update('patients', [
+                'notes' => $remark !== '' ? $remark : null,
+                'updated_at' => $this->now(),
+            ], 'id = :_id', ['_id' => $id]);
+            $this->audit('patients', 'queue_remark', $id, ['notes' => $patient['notes']], ['notes' => $remark]);
+        } else {
+            $old = $this->requireOwnAppointment((string) $id);
+            Database::update('appointments', [
+                'notes' => $remark !== '' ? $remark : null,
+                'updated_at' => $this->now(),
+            ], 'id = :_id', ['_id' => $id]);
+            $this->audit('appointments', 'queue_remark', $id, ['notes' => $old['notes'] ?? null], ['notes' => $remark]);
+        }
+
+        $this->jsonSuccess('Remark saved.', ['remark' => $remark]);
     }
 
     private function requireOwnAppointment(string $id): array

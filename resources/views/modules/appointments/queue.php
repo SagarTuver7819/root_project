@@ -63,12 +63,14 @@ foreach (($queue ?? []) as $row) {
     }
     $genderRaw = strtolower(trim((string) ($row['gender'] ?? '')));
     $mf = $genderRaw === 'male' ? 'm' : ($genderRaw === 'female' ? 'f' : ($genderRaw !== '' ? substr($genderRaw, 0, 1) : ''));
-    $notes = trim((string) ($row['visit_reason'] ?? ''));
+    $visitReason = trim((string) ($row['visit_reason'] ?? ''));
+    $remark = trim((string) ($row['notes'] ?? ''));
+    if ($remark === $visitReason) {
+        $remark = '';
+    }
+    $notes = $visitReason;
     if ($notes === '' && !empty($row['treatment_name'])) {
         $notes = (string) $row['treatment_name'];
-    }
-    if ($notes === '' && !empty($row['notes'])) {
-        $notes = (string) $row['notes'];
     }
     $docLabel = doctor_label((string) ($row['doctor_name'] ?? ''));
     if ($docLabel !== '' && $notes !== '' && stripos($notes, $docLabel) === false) {
@@ -87,11 +89,15 @@ foreach (($queue ?? []) as $row) {
     $sheetRows[] = [
         'serial' => $serial++,
         'row' => $row,
+        'type' => 'appointment',
+        'record_id' => (int) $row['id'],
         'age' => $age,
         'mf' => $mf,
         'notes' => $notes,
+        'remark' => $remark,
         'has_opg' => $hasOpg,
         'status' => $status,
+        'status_label' => null,
         'status_color' => $statusColor,
         'doctor_color' => $doctorColor,
         'ref' => trim((string) ($row['reference_doctor_name'] ?? '')),
@@ -99,6 +105,43 @@ foreach (($queue ?? []) as $row) {
             || ($highlightCode && (string) $row['appointment_code'] === (string) $highlightCode),
     ];
 }
+
+foreach (($registeredOnly ?? []) as $row) {
+    $age = null;
+    if (!empty($row['age'])) {
+        $age = (int) $row['age'];
+    } elseif (!empty($row['dob'])) {
+        try {
+            $age = (new DateTimeImmutable((string) $row['dob']))->diff(new DateTimeImmutable('today'))->y;
+        } catch (Throwable $e) {
+            $age = null;
+        }
+    }
+    $genderRaw = strtolower(trim((string) ($row['gender'] ?? '')));
+    $mf = $genderRaw === 'male' ? 'm' : ($genderRaw === 'female' ? 'f' : ($genderRaw !== '' ? substr($genderRaw, 0, 1) : ''));
+    $remark = trim((string) ($row['patient_notes'] ?? ''));
+    $row['id'] = 'p' . $row['patient_id'];
+    $row['appointment_date'] = $date ?? date('Y-m-d');
+    $row['start_time'] = null;
+    $sheetRows[] = [
+        'serial' => $serial++,
+        'row' => $row,
+        'type' => 'patient',
+        'record_id' => (int) $row['patient_id'],
+        'age' => $age,
+        'mf' => $mf,
+        'notes' => '',
+        'remark' => $remark,
+        'has_opg' => str_contains(strtolower($remark), 'opg'),
+        'status' => 'registered',
+        'status_label' => 'Registered',
+        'status_color' => '#64748B',
+        'doctor_color' => '#94A3B8',
+        'ref' => trim((string) ($row['reference_doctor_name'] ?? '')),
+        'is_match' => $highlightCode && (string) ($row['patient_code'] ?? '') === (string) $highlightCode,
+    ];
+}
+$totalInQueue = count($sheetRows);
 
 $filterQs = http_build_query(array_filter([
     'date' => $date ?? date('Y-m-d'),
@@ -468,6 +511,23 @@ $filterQs = http_build_query(array_filter([
     text-decoration: underline;
     color: #0f766e;
 }
+.queue-sheet-table .qs-notes-click {
+    cursor: pointer;
+}
+.queue-sheet-table .qs-notes-click:hover {
+    outline: 2px dashed #00AEEF;
+    outline-offset: -3px;
+}
+.queue-sheet-table .qs-remark {
+    font-size: 12px;
+    font-weight: 500;
+    color: #334155;
+    margin-top: 2px;
+}
+.queue-sheet-table .qs-remark-empty {
+    color: #0284c7;
+    font-weight: 600;
+}
 .queue-sheet-empty {
     text-align: center;
     padding: 2.5rem 1rem;
@@ -580,8 +640,20 @@ $filterQs = http_build_query(array_filter([
                     </td>
                     <td class="qs-mf"><?= e((string) $item['mf']) ?></td>
                     <td class="qs-age"><?= $item['age'] !== null ? e((string) $item['age']) : '' ?></td>
-                    <td class="qs-notes" style="background: <?= e($item['doctor_color']) ?>33;">
-                        <?= e((string) $item['notes']) ?>
+                    <td class="qs-notes qs-notes-click" style="background: <?= e($item['doctor_color']) ?>33;"
+                        role="button" tabindex="0" title="Click to add / edit remark"
+                        data-type="<?= e($item['type']) ?>"
+                        data-id="<?= (int) $item['record_id'] ?>"
+                        data-patient="<?= e((string) ($row['patient_name'] ?? '')) ?>"
+                        data-remark="<?= e((string) $item['remark']) ?>">
+                        <?php if ($item['notes'] !== ''): ?>
+                            <div><?= e((string) $item['notes']) ?></div>
+                        <?php endif; ?>
+                        <?php if ($item['remark'] !== ''): ?>
+                            <div class="qs-remark"><i class="bi bi-chat-left-text me-1"></i><span class="qs-remark-text"><?= e((string) $item['remark']) ?></span></div>
+                        <?php else: ?>
+                            <div class="qs-remark qs-remark-empty"><i class="bi bi-plus-circle me-1"></i><span class="qs-remark-text">Add remark</span></div>
+                        <?php endif; ?>
                     </td>
                     <td class="qs-opg <?= !empty($item['has_opg']) ? 'has-opg' : '' ?>">
                         <?= !empty($item['has_opg']) ? 'opg' : '' ?>
@@ -590,7 +662,7 @@ $filterQs = http_build_query(array_filter([
                     <td><?= e((string) $item['ref']) ?></td>
                     <td>
                         <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:<?= e($item['status_color']) ?>;margin-right:4px;"></span>
-                        <?= e($queueMeta[$item['status']]['name'] ?? ucfirst(str_replace('_', ' ', $item['status']))) ?>
+                        <?= e($item['status_label'] ?? ($queueMeta[$item['status']]['name'] ?? ucfirst(str_replace('_', ' ', $item['status'])))) ?>
                     </td>
                     <td><?= e(format_time($row['start_time'] ?? null)) ?></td>
                 </tr>
@@ -598,6 +670,26 @@ $filterQs = http_build_query(array_filter([
             <?php endif; ?>
             </tbody>
         </table>
+    </div>
+</div>
+<div class="modal fade" id="queueRemarkModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" id="queueRemarkForm">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-chat-left-text me-2"></i>Remark — <span id="queueRemarkPatient"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="queueRemarkType" value="">
+                <input type="hidden" id="queueRemarkId" value="">
+                <label class="form-label" for="queueRemarkInput">Remark</label>
+                <textarea class="form-control" id="queueRemarkInput" rows="4" placeholder="e.g. OPG karavvu, pain in lower right, call before visit..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="queueRemarkSave"><i class="bi bi-check2 me-1"></i>Save Remark</button>
+            </div>
+        </form>
     </div>
 </div>
 <script>
@@ -608,6 +700,64 @@ document.addEventListener('DOMContentLoaded', function () {
             highlighted.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 200);
     }
+
+    const modalEl = document.getElementById('queueRemarkModal');
+    const modal = modalEl && window.bootstrap ? new bootstrap.Modal(modalEl) : null;
+    const input = document.getElementById('queueRemarkInput');
+    let activeCell = null;
+
+    function openRemark(cell) {
+        activeCell = cell;
+        document.getElementById('queueRemarkType').value = cell.dataset.type || 'appointment';
+        document.getElementById('queueRemarkId').value = cell.dataset.id || '';
+        document.getElementById('queueRemarkPatient').textContent = cell.dataset.patient || '';
+        input.value = cell.dataset.remark || '';
+        modal && modal.show();
+    }
+
+    document.querySelectorAll('.qs-notes-click').forEach(function (cell) {
+        cell.addEventListener('click', function () { openRemark(cell); });
+        cell.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openRemark(cell);
+            }
+        });
+    });
+
+    modalEl?.addEventListener('shown.bs.modal', function () {
+        input.focus();
+        const len = input.value.length;
+        try { input.setSelectionRange(len, len); } catch (err) { /* ignore */ }
+    });
+
+    document.getElementById('queueRemarkForm')?.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!activeCell) return;
+        const btn = document.getElementById('queueRemarkSave');
+        btn.disabled = true;
+        const remark = input.value.trim();
+        RootsApp.post(<?= json_encode(app_url('queue/remark')) ?>, {
+            type: document.getElementById('queueRemarkType').value,
+            id: document.getElementById('queueRemarkId').value,
+            remark: remark
+        }).done(function (res) {
+            activeCell.dataset.remark = remark;
+            const box = activeCell.querySelector('.qs-remark');
+            const text = activeCell.querySelector('.qs-remark-text');
+            if (box && text) {
+                box.classList.toggle('qs-remark-empty', remark === '');
+                box.querySelector('i').className = remark === '' ? 'bi bi-plus-circle me-1' : 'bi bi-chat-left-text me-1';
+                text.textContent = remark === '' ? 'Add remark' : remark;
+            }
+            modal && modal.hide();
+            toastr.success((res && res.message) || 'Remark saved.');
+        }).fail(function (xhr) {
+            toastr.error((xhr.responseJSON && xhr.responseJSON.message) || 'Unable to save remark.');
+        }).always(function () {
+            btn.disabled = false;
+        });
+    });
 });
 </script>
 <?php else: ?>
