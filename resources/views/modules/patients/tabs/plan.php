@@ -219,6 +219,12 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
                                 <i class="bi bi-check2-circle me-1"></i><span class="suggested-plan-complete-label"><?= $totalParts > 1 ? 'Part ' . (int) $nextPart . '/' . (int) $totalParts . ' Complete' : 'Treatment Complete' ?></span>
                             </button>
                         <?php endif; ?>
+                        <?php if ($canEdit && can('appointments.add')): ?>
+                            <button type="button" class="btn btn-outline-info suggested-plan-book-more"
+                                    title="Same treatment mate biji / next sitting appointment calendar ma add karo">
+                                <i class="bi bi-calendar2-plus me-1"></i>Add one more appointment
+                            </button>
+                        <?php endif; ?>
                         <?php if ($canEdit && $n > $minRows && !$isLocked): ?>
                             <button type="button" class="btn btn-outline-danger suggested-plan-remove" title="Remove">&times;</button>
                         <?php endif; ?>
@@ -282,6 +288,12 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
                 <button type="button" class="btn btn-success suggested-plan-complete" data-paid="0" data-due="0" data-done="0">
                     <i class="bi bi-check2-circle me-1"></i><span class="suggested-plan-complete-label">Treatment Complete</span>
                 </button>
+                <?php if (can('appointments.add')): ?>
+                    <button type="button" class="btn btn-outline-info suggested-plan-book-more"
+                            title="Same treatment mate biji / next sitting appointment calendar ma add karo">
+                        <i class="bi bi-calendar2-plus me-1"></i>Add one more appointment
+                    </button>
+                <?php endif; ?>
                 <button type="button" class="btn btn-outline-danger suggested-plan-remove" title="Remove">&times;</button>
             </div>
         </div>
@@ -709,7 +721,7 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
 
   list.addEventListener('click', function (e) {
     const row = e.target.closest('.suggested-plan-row');
-    if (row && !e.target.closest('.suggested-plan-remove, .suggested-plan-book, .suggested-plan-complete, .suggested-plan-collect')) {
+    if (row && !e.target.closest('.suggested-plan-remove, .suggested-plan-book, .suggested-plan-book-more, .suggested-plan-complete, .suggested-plan-collect')) {
       setActiveRow(row);
     }
   });
@@ -1410,11 +1422,13 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
       return;
     }
 
-    const book = e.target.closest('.suggested-plan-book');
+    const book = e.target.closest('.suggested-plan-book, .suggested-plan-book-more');
     if (!book) return;
     const row = book.closest('.suggested-plan-row');
-    if (row && row.dataset.locked === '1') {
-      toastr.warning('Payment lidhu treatment — calendar booking Complete modal mathi karo.');
+    const isMoreAppt = book.classList.contains('suggested-plan-book-more');
+    // First calendar book still blocked after payment lock; "one more appointment" stays open for next sitting.
+    if (!isMoreAppt && row && row.dataset.locked === '1') {
+      toastr.warning('Payment lidhu treatment — next sitting mate "Add one more appointment" use karo.');
       return;
     }
     const desc = (row.querySelector('.suggested-plan-desc')?.value || '').trim();
@@ -1431,7 +1445,15 @@ $renderPalmerTeeth = static function (array $codes, bool $canEdit, array $select
       return;
     }
 
-    const reason = teeth ? (desc + ' · ' + teeth) : desc;
+    const parts = rowPartsInfo(row);
+    let reason = teeth ? (desc + ' · ' + teeth) : desc;
+    if (isMoreAppt) {
+      if (parts.total > 1) {
+        reason += ' · Part ' + parts.next + '/' + parts.total + ' sitting';
+      } else {
+        reason += ' · Next sitting';
+      }
+    }
     const params = new URLSearchParams({
       patient_id: patientId,
       doctor_id: doctorId,
